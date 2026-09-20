@@ -1,0 +1,880 @@
+openapi: 3.0.3
+
+info:
+  title: 在线书店电商系统 API 草案
+  version: "1.0.0"
+  description: |
+    进阶式挑战性综合项目 I · 安全电子商务系统的设计与实现
+    小组：第 1 组 · 场景：在线书店（纸质书零售） · 仓库：secure-ecommerce-team-01
+
+    本文件由第 3 周《API对象清单V0.1.md》升级而来，是第 4 周需求基线四份材料之一。
+    草案状态：**只定义，不实现**。第 8 周接口开发照此实现。
+
+    路径清单覆盖任务书要求的「用户管理核心接口」（注册、登录、退出、查询本人信息、修改本人信息）
+    以及本组场景接口（图书浏览与搜索、图书详情、购物车查询、购物车加购）。
+
+    编号贯通：本文件每个接口的 x-trace 字段给出对应的需求编号（FR/SR/NFR）
+    与用例编号（UC），编号口径与《需求追踪矩阵V1》一致。
+  contact:
+    name: 第 1 组 后端负责人
+  license:
+    name: 课程内部使用
+
+servers:
+  - url: https://api.example-bookstore.local
+    description: 示例地址，正式部署域名待定
+  - url: http://localhost:8080
+    description: 本地开发环境（仅开发使用，生产必须 HTTPS）
+
+tags:
+  - name: 认证
+    description: 注册、登录、退出与会话管理
+  - name: 个人中心
+    description: 查询与修改当前登录用户的本人资料
+  - name: 图书
+    description: 图书浏览、检索与详情（公开只读）
+  - name: 购物车
+    description: 当前买家的购物车管理与加购
+
+security:
+  - bearerAuth: []
+
+paths:
+
+  /api/users/register:
+    post:
+      tags: [认证]
+      summary: 注册买家账号
+      description: |
+        创建买家账号，完成注册对象落库。
+        公开接口，必须限流并具备防重复提交能力。
+        UC-USER-001，API-USER-001。
+      operationId: registerUser
+      security: []
+      x-trace:
+        useCases: [UC-USER-001]
+        functional: [FR-USER-001]
+        security: [SR-DATA-001, SR-SQL-001, SR-INPUT-001]
+        nonFunctional: [NFR-REL-001]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            examples:
+              normal:
+                summary: 正常注册
+                value:
+                  username: reader_zhang
+                  phone: "13800138000"
+                  password: Passw0rd!2026
+              duplicate:
+                summary: 重复登录名（应返回 409）
+                value:
+                  username: reader_zhang
+                  phone: "13800138000"
+                  password: Passw0rd!2026
+      responses:
+        '201':
+          description: 注册成功，返回最小公开资料，响应体不含密码与哈希
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPublic'
+              examples:
+                created:
+                  value:
+                    userId: 10001
+                    username: reader_zhang
+                    phone: "138****8000"
+                    role: buyer
+                    status: active
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: 登录名或已绑定手机号冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                conflict:
+                  value:
+                    code: USER_ALREADY_EXISTS
+                    message: 该登录名或手机号已被使用
+                    traceId: 9f1c2ab7-0001
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/auth/login:
+    post:
+      tags: [认证]
+      summary: 登录并创建有效会话
+      description: |
+        验证买家、商户或管理员凭据并签发访问令牌。
+        失败提示统一为「账号或密码错误」，不得泄露账号是否存在或是否被锁定。
+        UC-USER-002，API-AUTH-001。
+      operationId: login
+      security: []
+      x-trace:
+        useCases: [UC-USER-002]
+        functional: [FR-USER-002]
+        security: [SR-INPUT-001, SR-AUTH-002, SR-LOG-001]
+        nonFunctional: [NFR-REL-001]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              normal:
+                summary: 正常登录
+                value:
+                  account: reader_zhang
+                  password: Passw0rd!2026
+              wrong:
+                summary: 密码错误（应返回 401，提示不泄露账号存在性）
+                value:
+                  account: reader_zhang
+                  password: wrong-password
+      responses:
+        '200':
+          description: 登录成功，签发访问令牌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+              examples:
+                ok:
+                  value:
+                    accessToken: eyJhbGciOiJIUzI1NiJ9.PLACEHOLDER.SIGNATURE
+                    tokenType: Bearer
+                    expiresIn: 7200
+                    user:
+                      userId: 10001
+                      username: reader_zhang
+                      role: buyer
+                      status: active
+          headers:
+            Cache-Control:
+              description: 含凭据的响应不得被中间节点缓存
+              schema:
+                type: string
+                example: no-store
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: 凭据无效；提示统一为「账号或密码错误」
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidCredentials:
+                  value:
+                    code: AUTH_INVALID_CREDENTIALS
+                    message: 账号或密码错误
+                    traceId: 9f1c2ab7-0002
+        '423':
+          description: 同一账号连续登录失败达到阈值，账号被临时锁定（对齐 SR-AUTH-002：连续 5 次）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                locked:
+                  value:
+                    code: AUTH_ACCOUNT_LOCKED
+                    message: 账号已临时锁定，请稍后重试
+                    traceId: 9f1c2ab7-0003
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/auth/logout:
+    post:
+      tags: [认证]
+      summary: 退出并注销当前会话
+      description: |
+        注销当前会话或令牌，结束登录状态。退出成功后原令牌立即失效，
+        重复退出按幂等处理，不影响其他设备或用户。UC-USER-004，API-AUTH-002。
+      operationId: logout
+      x-trace:
+        useCases: [UC-USER-004]
+        functional: [FR-USER-003]
+        security: [SR-SESSION-001, SR-LOG-001]
+      responses:
+        '204':
+          description: 退出成功，无响应体
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/users/me:
+    get:
+      tags: [个人中心]
+      summary: 查询当前登录用户的本人资料
+      description: |
+        用户身份只从服务端令牌解析，不接受客户端指定用户编号。
+        响应字段按当前角色最小化返回，敏感字段脱敏。UC-USER-003，API-USER-002。
+      operationId: getCurrentUser
+      x-trace:
+        useCases: [UC-USER-003]
+        functional: [FR-USER-004]
+        security: [SR-AUTH-001, SR-LOG-001]
+      responses:
+        '200':
+          description: 返回本人资料
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+              examples:
+                buyer:
+                  value:
+                    userId: 10001
+                    username: reader_zhang
+                    role: buyer
+                    status: active
+                    phone: "138****8000"
+                    email: r***g@example.com
+                    createdAt: "2026-09-20T10:00:00+08:00"
+                    lastLoginAt: "2026-09-20T10:30:00+08:00"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      tags: [个人中心]
+      summary: 修改当前登录用户的个人资料
+      description: |
+        只允许修改服务端白名单字段；role、status 等字段不可由客户端变更。
+        对手机号、邮箱等字段做格式与归属校验。UC-USER-005，API-USER-003。
+      operationId: updateCurrentUser
+      x-trace:
+        useCases: [UC-USER-005]
+        functional: [FR-USER-005]
+        security: [SR-INPUT-001, SR-AUTH-001, SR-LOG-001]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+            examples:
+              normal:
+                summary: 修改昵称与邮箱
+                value:
+                  nickname: 老张
+                  email: reader@example.com
+              forbiddenField:
+                summary: 尝试改角色（应被忽略或返回 400）
+                value:
+                  role: admin
+      responses:
+        '200':
+          description: 修改成功，返回更新后的本人资料
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/books:
+    get:
+      tags: [图书]
+      summary: 分页浏览与检索在售图书
+      description: |
+        公开只读接口，支持书名、作者、ISBN、分类检索；分页参数有上限；
+        不暴露商户内部数据。UC-BOOK-001，API-BOOK-001。
+      operationId: listBooks
+      security: []
+      x-trace:
+        useCases: [UC-BOOK-001]
+        functional: [FR-GOODS-001]
+        nonFunctional: [NFR-PERF-001]
+      parameters:
+        - name: keyword
+          in: query
+          description: 书名 / 作者 / ISBN 模糊匹配关键词
+          required: false
+          schema:
+            type: string
+            maxLength: 64
+        - name: category
+          in: query
+          description: 分类标识
+          required: false
+          schema:
+            type: string
+            maxLength: 32
+        - name: page
+          in: query
+          description: 页码，从 1 开始
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: size
+          in: query
+          description: 每页条数，上限 50，避免一次拉取全量数据
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        '200':
+          description: 分页图书列表，只含在售图书
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/books/{bookId}:
+    get:
+      tags: [图书]
+      summary: 查询单本图书详情
+      description: |
+        返回价格、库存展示状态和简介。已下架或不可售图书返回 404。
+        价格与库存只作为服务端权威数据展示，不接收客户端覆盖。
+        UC-BOOK-002，API-BOOK-002。
+      operationId: getBookDetail
+      security: []
+      x-trace:
+        useCases: [UC-BOOK-002]
+        functional: [FR-GOODS-002]
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          description: 图书标识
+          schema:
+            type: string
+            pattern: '^[0-9]{1,12}$'
+      responses:
+        '200':
+          description: 图书详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Book'
+        '404':
+          description: 图书不存在或不可售；不区分「不存在」与「无权限」，避免泄露内部状态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/cart:
+    get:
+      tags: [购物车]
+      summary: 查询当前买家的购物车
+      description: |
+        购物车归属只从登录身份获取，不接受客户端传入其他用户编号。
+        金额以服务端商品价格计算，不信任客户端提交的价格。
+        过滤失效或不可售条目并明确提示。UC-CART-001，API-CART-001。
+      operationId: getCart
+      x-trace:
+        useCases: [UC-CART-001]
+        functional: [FR-CART-001]
+        security: [SR-AUTH-001]
+      responses:
+        '200':
+          description: 本人购物车内容
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+              examples:
+                cart:
+                  value:
+                    ownerUserId: 10001
+                    totalAmount:
+                      amount: "83.40"
+                      currency: CNY
+                    items:
+                      - bookId: "20001"
+                        title: 密码学导论
+                        unitPrice: "45.00"
+                        quantity: 1
+                        available: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/cart/items:
+    post:
+      tags: [购物车]
+      summary: 将指定在售图书加入当前买家购物车
+      description: |
+        校验图书状态、库存和购买数量；不得信任客户端提交的价格、总价或归属用户编号。
+        UC-CART-002，API-CART-002。
+      operationId: addCartItem
+      x-trace:
+        useCases: [UC-CART-002]
+        functional: [FR-CART-002]
+        security: [SR-AUTH-001, SR-INPUT-001]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddCartItemRequest'
+            examples:
+              normal:
+                summary: 加入 2 本
+                value:
+                  bookId: "20001"
+                  quantity: 2
+              overStock:
+                summary: 超过库存（应返回 400）
+                value:
+                  bookId: "20001"
+                  quantity: 9999
+      responses:
+        '200':
+          description: 加入成功，返回更新后的本人购物车
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: 图书不存在或已下架
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        登录成功后签发的访问令牌，放在 `Authorization: Bearer <token>` 请求头。
+        令牌不得出现在 URL 查询参数中。退出后原令牌必须立即失效（SR-SESSION-001）。
+
+  responses:
+    BadRequest:
+      description: 参数缺失、格式错误或超出允许范围
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            validation:
+              value:
+                code: VALIDATION_ERROR
+                message: 请求参数不合法
+                traceId: 9f1c2ab7-0004
+    Unauthorized:
+      description: 未登录、凭据无效或会话已失效
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            noSession:
+              value:
+                code: AUTH_UNAUTHENTICATED
+                message: 请先登录
+                traceId: 9f1c2ab7-0005
+    Forbidden:
+      description: 已登录但角色权限或资源归属校验不通过
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            crossUser:
+              value:
+                code: AUTH_FORBIDDEN
+                message: 无权访问该资源
+                traceId: 9f1c2ab7-0006
+    TooManyRequests:
+      description: 请求超过限流阈值，用于抵御暴力破解与批量注册
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            throttled:
+              value:
+                code: RATE_LIMITED
+                message: 请求过于频繁，请稍后重试
+                traceId: 9f1c2ab7-0007
+    InternalError:
+      description: 未预期服务异常；只返回统一友好提示与追踪编号，不暴露堆栈或数据库信息（NFR-REL-001）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            unexpected:
+              value:
+                code: INTERNAL_ERROR
+                message: 服务暂时不可用，请稍后重试
+                traceId: 9f1c2ab7-0008
+
+  schemas:
+
+    RegisterRequest:
+      type: object
+      description: 注册请求体。密码只在请求体传输，禁止出现在 URL 中。
+      required: [username, phone, password]
+      additionalProperties: false
+      properties:
+        username:
+          type: string
+          description: 登录名，唯一
+          minLength: 4
+          maxLength: 32
+          pattern: '^[A-Za-z0-9_]+$'
+        phone:
+          type: string
+          description: 手机号，需通过格式校验且在库中唯一
+          pattern: '^1[3-9][0-9]{9}$'
+        password:
+          type: string
+          description: 明文密码，仅在 HTTPS 请求体内传输；服务端加盐哈希后存储（SR-DATA-001），任何响应、日志、异常信息中均不得回显
+          format: password
+          minLength: 8
+          maxLength: 64
+
+    LoginRequest:
+      type: object
+      description: 登录请求体
+      required: [account, password]
+      additionalProperties: false
+      properties:
+        account:
+          type: string
+          description: 登录名或已绑定手机号
+          minLength: 1
+          maxLength: 64
+        password:
+          type: string
+          format: password
+          minLength: 1
+          maxLength: 64
+
+    LoginResponse:
+      type: object
+      required: [accessToken, tokenType, expiresIn, user]
+      properties:
+        accessToken:
+          type: string
+          description: 访问令牌。不得写入日志（SR-LOG-001）
+          example: eyJhbGciOiJIUzI1NiJ9.PLACEHOLDER.SIGNATURE
+        tokenType:
+          type: string
+          enum: [Bearer]
+        expiresIn:
+          type: integer
+          description: 令牌有效期，单位秒
+          example: 7200
+          minimum: 300
+          maximum: 86400
+        user:
+          $ref: '#/components/schemas/UserPublic'
+
+    UpdateProfileRequest:
+      type: object
+      description: |
+        个人资料修改请求。**白名单字段**，只允许下列字段被修改；
+        userId、role、status 等字段即使被提交也必须被服务端忽略或拒绝（FR-USER-005）。
+      additionalProperties: false
+      properties:
+        nickname:
+          type: string
+          minLength: 1
+          maxLength: 32
+        email:
+          type: string
+          format: email
+          maxLength: 128
+        phone:
+          type: string
+          pattern: '^1[3-9][0-9]{9}$'
+
+    AddCartItemRequest:
+      type: object
+      description: |
+        加购请求。**只允许提交 bookId 与 quantity**；
+        价格、总价、归属用户编号一律由服务端计算得出，客户端提交的值不被信任（FR-CART-002）。
+      required: [bookId, quantity]
+      additionalProperties: false
+      properties:
+        bookId:
+          type: string
+          pattern: '^[0-9]{1,12}$'
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 999
+
+    UserPublic:
+      type: object
+      description: 最小公开资料，用于注册、登录响应。不含密码、哈希、内部状态机字段。
+      required: [userId, username, role, status]
+      properties:
+        userId:
+          type: integer
+          format: int64
+          readOnly: true
+          example: 10001
+        username:
+          type: string
+          readOnly: true
+        phone:
+          type: string
+          readOnly: true
+          description: 脱敏展示
+          example: "138****8000"
+        role:
+          type: string
+          readOnly: true
+          enum: [buyer, merchant, admin]
+        status:
+          type: string
+          readOnly: true
+          enum: [active, locked, disabled]
+
+    UserProfile:
+      type: object
+      description: 本人资料。敏感字段脱敏；不返回密码或哈希（SR-AUTH-001）。
+      required: [userId, username, role, status]
+      properties:
+        userId:
+          type: integer
+          format: int64
+          readOnly: true
+        username:
+          type: string
+          readOnly: true
+        nickname:
+          type: string
+          nullable: true
+        role:
+          type: string
+          readOnly: true
+          enum: [buyer, merchant, admin]
+        status:
+          type: string
+          readOnly: true
+          enum: [active, locked, disabled]
+        phone:
+          type: string
+          readOnly: true
+          description: 脱敏展示
+          example: "138****8000"
+        email:
+          type: string
+          readOnly: true
+          description: 脱敏展示
+          example: "r***g@example.com"
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        lastLoginAt:
+          type: string
+          format: date-time
+          readOnly: true
+
+    BookPage:
+      type: object
+      required: [page, size, total, items]
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        size:
+          type: integer
+          minimum: 1
+          maximum: 50
+        total:
+          type: integer
+          format: int64
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookBrief'
+
+    BookBrief:
+      type: object
+      description: 列表项，刻意不含库存明细和商户内部数据
+      required: [bookId, title, author, price, available]
+      properties:
+        bookId:
+          type: string
+        title:
+          type: string
+        author:
+          type: string
+        coverUrl:
+          type: string
+          nullable: true
+        price:
+          type: string
+          description: 金额以字符串传输，避免浮点误差
+          example: "45.00"
+        available:
+          type: boolean
+          description: 是否可售，不暴露具体库存数值
+
+    Book:
+      type: object
+      description: 图书详情，价格与库存为服务端权威数据
+      required: [bookId, title, author, price, stockStatus]
+      properties:
+        bookId:
+          type: string
+        title:
+          type: string
+        author:
+          type: string
+        publisher:
+          type: string
+          nullable: true
+        isbn:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+        intro:
+          type: string
+          nullable: true
+        coverUrl:
+          type: string
+          nullable: true
+        price:
+          type: string
+          example: "45.00"
+        stockStatus:
+          type: string
+          enum: [in_stock, low_stock, out_of_stock, off_shelf]
+        currency:
+          type: string
+          default: CNY
+
+    Cart:
+      type: object
+      required: [items, totalAmount]
+      properties:
+        ownerUserId:
+          type: integer
+          format: int64
+          readOnly: true
+          description: 服务端写入的购物车归属，不接受客户端传入
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CartItem'
+        totalAmount:
+          $ref: '#/components/schemas/Money'
+
+    CartItem:
+      type: object
+      required: [bookId, title, unitPrice, quantity, available]
+      properties:
+        bookId:
+          type: string
+        title:
+          type: string
+        unitPrice:
+          type: string
+          description: 服务端权威单价
+          example: "45.00"
+        quantity:
+          type: integer
+          minimum: 1
+        available:
+          type: boolean
+          description: 失效或不可售条目为 false，并在前端明确提示
+        unavailableReason:
+          type: string
+          nullable: true
+          example: 已下架
+
+    Money:
+      type: object
+      description: 金额对象。金额用字符串承载，避免二进制浮点误差。
+      required: [amount, currency]
+      properties:
+        amount:
+          type: string
+          pattern: '^[0-9]+(\.[0-9]{2})?$'
+          example: "83.40"
+        currency:
+          type: string
+          default: CNY
+
+    ErrorResponse:
+      type: object
+      description: 统一错误响应。不包含堆栈、SQL、类名或数据库信息（NFR-REL-001）。
+      required: [code, message, traceId]
+      properties:
+        code:
+          type: string
+          description: 稳定的业务错误码，供前端分支处理，不随文案变化
+          example: AUTH_INVALID_CREDENTIALS
+        message:
+          type: string
+          description: 面向用户的可读提示，不得泄露账号是否存在等敏感状态
+          example: 账号或密码错误
+        traceId:
+          type: string
+          description: 请求追踪编号，与审计日志关联
+          example: 9f1c2ab7-0002
+        details:
+          type: array
+          description: 可选；仅用于字段级校验提示，禁止回显原始输入中的敏感字段
+          nullable: true
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                example: password
+              reason:
+                type: string
+                example: 长度不足 8 位
