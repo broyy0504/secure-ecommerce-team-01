@@ -1,0 +1,8 @@
+# ── Java 编译输出 ──
+/out/
+*.class
+
+# ── 编辑器 / IDE ──
+.idea/
+*.iml
+.vscode/
