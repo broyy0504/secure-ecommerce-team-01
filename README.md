@@ -63,3 +63,38 @@ secure-ecommerce-team-01/
 ## 七、 当前完成情况
 
 已建立仓库，完成初步方案调研与分工
+
+## 八、 第 5 周：密码学基础算法与 RSA 实现
+
+第 5 周成果独立成模块，位于 `src/crypto/`，不接入项目业务代码（第 7 周用户管理模块开发时再集成）。
+
+| 成果 | 文件 | 状态 |
+| :--- | :--- | :--- |
+| 密码学基础算法模块（源码） | [`src/crypto/bigint_ops.java`](src/crypto/bigint_ops.java) | 已完成 |
+| 小位宽 RSA 实现（源码） | `src/crypto/rsa.*` | 待提交 |
+| 加盐哈希演示 | `src/crypto/hash_demo.*` | 待提交 |
+| 标准库交叉验证（与主实现分开存放） | `src/crypto/verify_with_stdlib.*` | 待提交 |
+| 测试向量表 | `docs/crypto/week05/测试向量表.md` | 待提交 |
+| 算法说明 | `docs/crypto/week05/算法说明.md` | 待提交 |
+
+`bigint_ops.java` 提供四组能力：
+
+1. **模运算基础** —— `mod` / `modAdd` / `modSub` / `modMul`，负数返回非负代表元；
+2. **快速幂（模幂）** —— `modPow` 采用重复平方乘，复杂度 O(log e)；
+3. **最大公约数与模逆** —— `gcd` / `extGcd`（扩展欧几里得）/ `modInverse`；
+4. **素性检测与素数生成** —— `isProbablePrime`（Miller-Rabin）/ `randomPrime`（固定种子可复现）。
+
+运行方式（模块含自检与性能实测，直接运行即可看到结果）：
+
+```bash
+# 方式一：单文件模式（JDK 11+）
+java src/crypto/bigint_ops.java
+
+# 方式二：常规编译运行
+javac -encoding UTF-8 -d out src/crypto/bigint_ops.java
+java -cp out crypto.bigint_ops
+```
+
+> **安全提示**：本模块为教学示例代码，**仅用于课程演示，不得用于任何真实数据**。
+> 源码与运行输出中均说明了它的安全边界：非常数时间实现（存在计时侧信道）、
+> 随机源非密码学安全、小位宽模数可被分解、未含填充不能直接加密数据。
