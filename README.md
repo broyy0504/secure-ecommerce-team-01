@@ -71,11 +71,11 @@ secure-ecommerce-team-01/
 | 成果 | 文件 | 状态 |
 | :--- | :--- | :--- |
 | 密码学基础算法模块（源码） | [`src/crypto/bigint_ops.java`](src/crypto/bigint_ops.java) | 已完成 |
-| 小位宽 RSA 实现（源码） | `src/crypto/rsa.*` | 待提交 |
+| 小位宽 RSA 实现（源码） | [`src/crypto/rsa.java`](src/crypto/rsa.java) | 已完成 |
 | 加盐哈希演示 | `src/crypto/hash_demo.*` | 待提交 |
 | 标准库交叉验证（与主实现分开存放） | `src/crypto/verify_with_stdlib.*` | 待提交 |
-| 测试向量表 | `docs/crypto/week05/测试向量表.md` | 待提交 |
-| 算法说明 | `docs/crypto/week05/算法说明.md` | 待提交 |
+| 测试向量表 | [`docs/crypto/week05/测试向量表.md`](docs/crypto/week05/测试向量表.md) | 已完成 |
+| 算法说明 | [`docs/crypto/week05/算法说明.md`](docs/crypto/week05/算法说明.md) | 已完成 |
 
 `bigint_ops.java` 提供四组能力：
 
@@ -95,6 +95,24 @@ javac -encoding UTF-8 -d out src/crypto/bigint_ops.java
 java -cp out crypto.bigint_ops
 ```
 
+`rsa.java` 实现小位宽（64 / 128 / 256 位）**教科书式 RSA**：
+
+1. **密钥生成** —— `generateKeyPair(bitLength, rnd)`，产出 p、q、n、φ(n)、e、d 及 CRT 参数；
+2. **加密 / 解密** —— `encrypt`（`c = m^e mod n`）、`decrypt`（`m = c^d mod n`）；
+3. **CRT 加速** —— `decryptCRT`，约 3~4 倍提速（1024 位实测 3.05×）；
+4. **字符串与中文** —— `encryptString` / `decryptString`，按模数位宽分块、块首加 `0x01` 哨兵，支持任意长度与中文字符串。
+
+运行方式（会依次输出公开向量自检、固定种子确定性向量、中文用例、边界与非法输入、
+CRT 性能对比、以及"小位宽为什么不能用于生产"的分解实测）：
+
+```bash
+javac --release 17 -encoding UTF-8 -d out src/crypto/bigint_ops.java src/crypto/rsa.java
+java -Dfile.encoding=UTF-8 -cp out crypto.rsa
+```
+
 > **安全提示**：本模块为教学示例代码，**仅用于课程演示，不得用于任何真实数据**。
 > 源码与运行输出中均说明了它的安全边界：非常数时间实现（存在计时侧信道）、
 > 随机源非密码学安全、小位宽模数可被分解、未含填充不能直接加密数据。
+> RSA 部分详细的原理、复杂度、性能与安全边界见
+> [`docs/crypto/week05/算法说明.md`](docs/crypto/week05/算法说明.md)，
+> 输入 → 期望输出用例见 [`docs/crypto/week05/测试向量表.md`](docs/crypto/week05/测试向量表.md)。
