@@ -70,44 +70,38 @@ secure-ecommerce-team-01/
 
 | 成果 | 文件 | 状态 |
 | :--- | :--- | :--- |
-| 密码学基础算法模块（源码） | [`src/crypto/bigint_ops.java`](src/crypto/bigint_ops.java) | 已完成 |
-| 小位宽 RSA 实现（源码） | [`src/crypto/rsa.java`](src/crypto/rsa.java) | 已完成 |
+| 密码学基础算法模块（源码） | [`src/crypto/bigint_ops.py`](src/crypto/bigint_ops.py) | 已完成 |
+| 小位宽 RSA 实现（源码） | [`src/crypto/rsa.py`](src/crypto/rsa.py) | 已完成 |
 | 加盐哈希演示 | `src/crypto/hash_demo.*` | 待提交 |
 | 标准库交叉验证（与主实现分开存放） | `src/crypto/verify_with_stdlib.*` | 待提交 |
 | 测试向量表 | [`docs/crypto/week05/测试向量表.md`](docs/crypto/week05/测试向量表.md) | 已完成 |
 | 算法说明 | [`docs/crypto/week05/算法说明.md`](docs/crypto/week05/算法说明.md) | 已完成 |
 
-`bigint_ops.java` 提供四组能力：
+`bigint_ops.py` 提供四组能力：
 
-1. **模运算基础** —— `mod` / `modAdd` / `modSub` / `modMul`，负数返回非负代表元；
-2. **快速幂（模幂）** —— `modPow` 采用重复平方乘，复杂度 O(log e)；
-3. **最大公约数与模逆** —— `gcd` / `extGcd`（扩展欧几里得）/ `modInverse`；
-4. **素性检测与素数生成** —— `isProbablePrime`（Miller-Rabin）/ `randomPrime`（固定种子可复现）。
+1. **模运算基础** —— `mod` / `mod_add` / `mod_sub` / `mod_mul`，负数返回非负代表元；
+2. **快速幂（模幂）** —— `mod_pow` 采用重复平方乘，复杂度 O(log e)；
+3. **最大公约数与模逆** —— `gcd` / `ext_gcd`（扩展欧几里得）/ `mod_inverse`；
+4. **素性检测与素数生成** —— `is_probable_prime`（Miller-Rabin）/ `random_prime`（固定种子可复现）。
 
-运行方式（模块含自检与性能实测，直接运行即可看到结果）：
+运行方式（Python 3.9+，无第三方依赖；模块含自检与性能实测，直接运行即可看到结果）：
 
 ```bash
-# 方式一：单文件模式（JDK 11+）
-java src/crypto/bigint_ops.java
-
-# 方式二：常规编译运行
-javac -encoding UTF-8 -d out src/crypto/bigint_ops.java
-java -cp out crypto.bigint_ops
+python src/crypto/bigint_ops.py
 ```
 
-`rsa.java` 实现小位宽（64 / 128 / 256 位）**教科书式 RSA**：
+`rsa.py` 实现小位宽（64 / 128 / 256 位）**教科书式 RSA**：
 
-1. **密钥生成** —— `generateKeyPair(bitLength, rnd)`，产出 p、q、n、φ(n)、e、d 及 CRT 参数；
+1. **密钥生成** —— `generate_key_pair(bit_length, rnd)`，产出 p、q、n、φ(n)、e、d 及 CRT 参数；
 2. **加密 / 解密** —— `encrypt`（`c = m^e mod n`）、`decrypt`（`m = c^d mod n`）；
-3. **CRT 加速** —— `decryptCRT`，约 3~4 倍提速（1024 位实测 3.05×）；
-4. **字符串与中文** —— `encryptString` / `decryptString`，按模数位宽分块、块首加 `0x01` 哨兵，支持任意长度与中文字符串。
+3. **CRT 加速** —— `decrypt_crt`，约 3 倍提速（1024 位实测 2.78×）；
+4. **字符串与中文** —— `encrypt_string` / `decrypt_string`，按模数位宽分块、块首加 `0x01` 哨兵，支持任意长度与中文字符串。
 
 运行方式（会依次输出公开向量自检、固定种子确定性向量、中文用例、边界与非法输入、
 CRT 性能对比、以及"小位宽为什么不能用于生产"的分解实测）：
 
 ```bash
-javac --release 17 -encoding UTF-8 -d out src/crypto/bigint_ops.java src/crypto/rsa.java
-java -Dfile.encoding=UTF-8 -cp out crypto.rsa
+python src/crypto/rsa.py
 ```
 
 > **安全提示**：本模块为教学示例代码，**仅用于课程演示，不得用于任何真实数据**。
