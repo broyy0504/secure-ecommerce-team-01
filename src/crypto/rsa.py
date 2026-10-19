@@ -54,7 +54,6 @@ java.util.Random，此处用种子 2025 生成的密钥与原先 Java 版**逐�
 
 from __future__ import annotations
 
-import sys
 import time
 
 try:                                   # 作为包导入时
