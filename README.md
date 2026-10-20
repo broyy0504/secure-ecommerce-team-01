@@ -72,8 +72,8 @@ secure-ecommerce-team-01/
 | :--- | :--- | :--- |
 | 密码学基础算法模块（源码） | [`src/crypto/bigint_ops.py`](src/crypto/bigint_ops.py) | 已完成 |
 | 小位宽 RSA 实现（源码） | [`src/crypto/rsa.py`](src/crypto/rsa.py) | 已完成 |
-| 加盐哈希演示 | `src/crypto/hash_demo.*` | 待提交 |
-| 标准库交叉验证（与主实现分开存放） | `src/crypto/verify_with_stdlib.*` | 待提交 |
+| 加盐哈希演示 | [`src/crypto/加盐哈希.py`](src/crypto/加盐哈希.py) | 已完成 |
+| 标准库交叉验证（与主实现分开存放） | [`src/crypto/verify_with_stdlib.py`](src/crypto/verify_with_stdlib.py) | 已完成 |
 | 测试向量表 | [`docs/crypto/week05/测试向量表.md`](docs/crypto/week05/测试向量表.md) | 已完成 |
 | 算法说明 | [`docs/crypto/week05/算法说明.md`](docs/crypto/week05/算法说明.md) | 已完成 |
 
@@ -102,6 +102,12 @@ CRT 性能对比、以及"小位宽为什么不能用于生产"的分解实测�
 
 ```bash
 python src/crypto/rsa.py
+```
+
+交叉验证（第二条路径，用标准库 `pow` / `math.gcd` 独立复算，共 128 项断言）：
+
+```bash
+python src/crypto/verify_with_stdlib.py
 ```
 
 > **安全提示**：本模块为教学示例代码，**仅用于课程演示，不得用于任何真实数据**。
