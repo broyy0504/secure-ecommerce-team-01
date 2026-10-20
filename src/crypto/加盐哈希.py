@@ -53,7 +53,7 @@ def hash_password(
     salt: Optional[bytes] = None,
     seed: Optional[int] = None,
 ) -> str:
-    """对口径加盐哈希，返回可存储字符串。"""
+    """对口令加盐哈希，返回可存储字符串。"""
     if salt is None:
         salt = _make_salt(seed)
 

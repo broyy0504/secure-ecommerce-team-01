@@ -20,7 +20,7 @@
   以模块级函数导出，无状态、无副作用。
 · 主实现不调用 Python 内置的 pow(a, b, m)，快速幂、gcd、素性检测均自行
   实现；标准库按任务书要求只允许出现在交叉验证脚本
-  （verify_with_stdlib.*）中，与主实现分开存放。
+  （verify_with_stdlib.py）中，与主实现分开存放。
 · 以 Python 内置任意精度整数 int 作为大整数载体
   （任务书明确许可：「Python 的 int、Java 的 BigInteger 可以直接使用，
   把时间花在算法本身上」）。

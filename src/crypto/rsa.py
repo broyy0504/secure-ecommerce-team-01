@@ -18,7 +18,7 @@
 -------------------------------------------------------------------------
 复用同目录的 bigint_ops（模幂 mod_pow、模逆 mod_inverse、素数生成
 random_prime 等）。主实现**不**调用标准库的 pow(a, b, m)，这些只允许
-出现在交叉验证脚本（verify_with_stdlib.*）中。
+出现在交叉验证脚本（verify_with_stdlib.py）中。
 
 可复现性
 -------------------------------------------------------------------------
@@ -54,7 +54,6 @@ java.util.Random，此处用种子 2025 生成的密钥与原先 Java 版**逐�
 
 from __future__ import annotations
 
-import sys
 import time
 
 try:                                   # 作为包导入时
