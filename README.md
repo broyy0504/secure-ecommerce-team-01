@@ -139,3 +139,37 @@ python test/check_design_docs.py
 > **边界声明**：`docs/design/` 声明的控制均为**设计规定**。`src/backend/`、`src/user/`、`db/` 尚未实现，因此除 `src/crypto/加盐哈希.py` 的口令派生算法外，没有控制已在代码中落地。凡声明「已做控制」的，均可在 [`04-控制指认与整改输入.md`](docs/design/04-控制指认与整改输入.md) §2 指到文件与位置；未落地的一律登记为 `R-D-xx` 整改条目。口令派生复用第 5 周 `src/crypto/加盐哈希.py`，不另写算法。
 >
 > `docs/design/02-安全需求.md` §2 只登记**被安全需求引用**的 17 条威胁，用于让每条 SR 能指到威胁编号；完整的 STRIDE 清单与 DREAD 打分以 `docs/threat-model/` 为准。
+
+## 十、 第 6-9 周阶段二：用户模块——输入校验与说明
+
+阶段二按交付项拆给不同成员。本节记录**「输入校验与说明」**这一条的成果，位于 `src/user/`；
+建库脚本（`db/`）、注册登录业务与令牌签发由组内其他成员负责，本层只提供它们调用的校验与错误出口。
+
+| 交付物 | 文件 | 状态 |
+| :--- | :--- | :--- |
+| 入口参数校验（注册 / 登录 / 退出 / 本人信息：类型、长度、格式、禁用字段） | [`src/user/validation.py`](src/user/validation.py) | 已完成 |
+| 封闭错误码与统一错误结构 `{code, message, traceId, details?}` | [`src/user/errors.py`](src/user/errors.py) | 已完成 |
+| 日志脱敏与异常收敛（不记口令、派生值、盐、密钥、堆栈） | [`src/user/logging_utils.py`](src/user/logging_utils.py) | 已完成 |
+| 第 5 周密码学模块的调用口径（`hash_password` / `verify_password` / 四列拆分） | [`src/user/password_port.py`](src/user/password_port.py) | 已完成 |
+| 说明：每个入口校验什么、调用第 5 周哪个函数、已知局限、复现步骤 | [`src/user/输入校验与说明.md`](src/user/输入校验与说明.md) | 已完成 |
+| 可执行验收脚本（169 项检查） | [`test/test_input_validation.py`](test/test_input_validation.py) | 已完成 |
+
+校验规则与 [`docs/design/03-接口契约.md`](docs/design/03-接口契约.md) §4.1—§4.4 逐条对齐：
+用户名 `^[A-Za-z0-9_]{4,32}$`、手机号 `^1[3-9]\d{9}$`（去空格与连字符）、口令 8—64 字符且
+UTF-8 ≤ 256 字节、请求体 4 KB / 2 KB 上限、`additionalProperties: false`、
+`details` 只回字段名与 8 个原因枚举且不回显原值。
+
+运行方式（Python 3.9+，无第三方依赖）：
+
+```bash
+python test/test_input_validation.py
+```
+
+```text
+共 169 项，通过 169 项，未通过 0 项。
+结果：输入校验、错误与日志脱敏、第 5 周密码学调用口径全部通过。
+```
+
+> **边界**：本层只判"请求是否合法"，不判"账号是否存在、令牌是否有效"；限流与锁定、
+> 数据库唯一约束、鉴权中间件均不在本层（对应整改条目 R-D-01、R-D-06、R-D-03）。
+> 已知局限 12 条见 [`src/user/输入校验与说明.md`](src/user/输入校验与说明.md) §6。

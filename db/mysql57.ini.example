@@ -1,0 +1,17 @@
+[mysqld]
+basedir=C:/Program Files/MySQL/MySQL Server 5.7
+datadir=D:/MySQL/mysql57-data
+port=3306
+bind-address=127.0.0.1
+character-set-server=utf8mb4
+collation-server=utf8mb4_unicode_ci
+explicit_defaults_for_timestamp=1
+sql-mode=STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+default-time-zone=+00:00
+max_allowed_packet=16M
+log-error=C:/ProgramData/MySQL/mysql57-error.log
+pid-file=D:/MySQL/mysql57-data/mysql57.pid
+
+[client]
+port=3306
+default-character-set=utf8mb4
