@@ -731,6 +731,9 @@ def section1_known_vectors():
                    not is_probable_prime(c, 40, None))
     check_true("is_probable_prime(1000000007 × 1000000009) = false",
                not is_probable_prime(1000000016000000063, 40, None))
+    # 回归：前 12 个素数基的强伪素数；若见证集漏掉 41，会被误判为素数。
+    check_true("is_probable_prime(318665857834031151167461) = false",
+               not is_probable_prime(318665857834031151167461, 40, None))
 
     print()
     print("  1.8 随机素数生成 —— 固定种子可复现")
