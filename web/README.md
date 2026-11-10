@@ -20,11 +20,15 @@
 python -m src.user.db init
 python -m src.user.server          # http://127.0.0.1:8000
 
-# 终端 2：前端（静态服务，任意静态服务器都行）
-python -m http.server 5173 -d web  # http://127.0.0.1:5173/login.html
+# 终端 2：前端，两种起法任选其一
+python web/serve.py                # 推荐：http://127.0.0.1:8080/login.html
+python -m http.server 5173 -d web  # 或：http://127.0.0.1:5173/login.html
 ```
 
-浏览器打开 <http://127.0.0.1:5173/login.html>。演示顺序：注册 → 登录 → 个人信息 → 退出 → 回登录页。
+浏览器打开 <http://127.0.0.1:8080/login.html>。演示顺序：注册 → 登录 → 个人信息 → 退出 → 回登录页。
+
+`serve.py` 只监听 `127.0.0.1`，顺便把 `/api/` 转发到 `127.0.0.1:8000`；页面本身仍按
+`http://127.0.0.1:8000` 直连，两种起法都能跑，因为这两个端口都在后端 CORS 白名单里。
 
 > 直接双击 `login.html`（`file://`）不行：CSP 与 CORS 都以"同源/白名单"为前提，必须经 HTTP 打开。
 

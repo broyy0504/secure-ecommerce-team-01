@@ -36,10 +36,10 @@ npx @redocly/cli preview-docs docs/api/openapi.yaml
 ```bash
 python -m src.user.db init            # 空库建表，打印库文件路径
 python -m src.user.server             # 后端 127.0.0.1:8000
-python -m http.server 5173 -d web     # 前端 127.0.0.1:5173（只在要演示页面时需要）
+python web/serve.py                   # 前端 127.0.0.1:8080（只在要演示页面时需要）
 ```
 
-后端默认只接受来自 `127.0.0.1:5173` / `localhost:5173` 的跨域请求；换端口起前端时：
+后端默认只接受来自 `127.0.0.1:8080` / `127.0.0.1:5173` / `localhost:5173` 的跨域请求；换端口起前端时：
 
 ```bash
 AUTH_ALLOWED_ORIGINS="http://127.0.0.1:5500" python -m src.user.server

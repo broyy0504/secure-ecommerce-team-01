@@ -18,7 +18,7 @@ server.py          路由、请求体读取、CORS、响应头、异常 → 错�
    响应里不出现异常类型、SQL、表名、堆栈。
 3. **令牌只走请求头**，不进 URL、不进 Cookie；因此所有响应都带 `Cache-Control: no-store`。
 
-CORS 白名单只放前端开发的两个源（5173）。不做 `*`：`*` 配 `Authorization` 头等于
+CORS 白名单只放前端开发的几个源（8080 / 5173）。不做 `*`：`*` 配 `Authorization` 头等于
 把"任何站点都能拿着用户令牌发请求"写进配置，测 CSRF 时会直接判不通过。
 
 II 阶段的路由在这里**先占位、后实现**：只返回 `501 NOT_IMPLEMENTED`，不返回假数据
@@ -61,7 +61,12 @@ HOST = os.environ.get("AUTH_HOST", "127.0.0.1")
 PORT = int(os.environ.get("AUTH_PORT", "8000"))
 
 # 前端开发源的默认白名单；换端口时用 AUTH_ALLOWED_ORIGINS 覆盖（逗号分隔）
-DEFAULT_ORIGINS = "http://127.0.0.1:5173,http://localhost:5173"
+# 8080 是 web/serve.py 的默认端口，5173 是 python -m http.server 的常用端口，两条路都留着
+DEFAULT_ORIGINS = (
+    "http://127.0.0.1:8080",
+    "http://127.0.0.1:5173",
+    "http://localhost:5173",
+)
 
 # 单次读取的上限：超过它连读都不读，直接 413 + 关连接，避免用一个 100MB 的体打满内存
 MAX_READ_BYTES = 64 * 1024
@@ -83,7 +88,10 @@ STUB_ROUTES: Tuple[Tuple[str, "re.Pattern[str]"], ...] = (
 
 
 def allowed_origins() -> Tuple[str, ...]:
-    raw = os.environ.get("AUTH_ALLOWED_ORIGINS", DEFAULT_ORIGINS)
+    """环境变量覆盖默认白名单；没设就用 DEFAULT_ORIGINS 这一组。"""
+    raw = os.environ.get("AUTH_ALLOWED_ORIGINS")
+    if not raw:
+        return DEFAULT_ORIGINS
     return tuple(item.strip() for item in raw.split(",") if item.strip())
 
 
@@ -256,7 +264,7 @@ class AuthHandler(BaseHTTPRequestHandler):
                         "GET /api/users/me",
                         "GET /api/auth/verify",
                     ],
-                    "web": "前端在 http://127.0.0.1:5173/login.html",
+                    "web": "前端在 http://127.0.0.1:8080/login.html（或 5173）",
                     "docs": "docs/api/openapi.yaml",
                 },
             )

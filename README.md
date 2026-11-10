@@ -211,13 +211,20 @@ python -m src.user.server           # http://127.0.0.1:8000
 
 启动时会打印库路径、CORS 白名单、限流是否开启。`GET /health` 可探活。
 
-**起前端**（前后端分离，两个进程）
+**起前端**（前后端分离，两个进程，两种起法任选其一）
 
 ```bash
-python -m http.server 5173 -d web   # http://127.0.0.1:5173/login.html
+python web/serve.py                 # 推荐：http://127.0.0.1:8080/login.html
+python -m http.server 5173 -d web   # 或：http://127.0.0.1:5173/login.html
 ```
 
-换端口时要同步放行：`AUTH_ALLOWED_ORIGINS="http://127.0.0.1:5500" python -m src.user.server`。
+两种都在 CORS 白名单里（`127.0.0.1:8080`、`127.0.0.1:5173`、`localhost:5173`），不用改配置。
+`web/serve.py` 只监听 `127.0.0.1`，并把 `/api/` 转发到 `127.0.0.1:8000`——加这层转发是为了让浏览器
+只看到一个来源；页面里仍按 `http://127.0.0.1:8000` 直连，两条路都通。
+
+换到白名单外的端口时要同步放行：`AUTH_ALLOWED_ORIGINS="http://127.0.0.1:5500" python -m src.user.server`。
+
+**不要直接双击 html 文件打开**：`file://` 下拿不到 `/api`，页面只会提示连不上服务端。
 
 **怎么试**
 
@@ -230,6 +237,22 @@ node test/security/xss_render_check.js           # XSS"页面源码为实体"8 �
 
 浏览器里：注册 →（自动登录）→ 个人信息 → 退出登录 → 确认退出 → 回登录页。
 中途不需要手工插数据、不需要改配置。
+
+### 11.2.1 前端三条口径
+
+- **令牌放 `sessionStorage`、只走 `Authorization` 请求头、不用 Cookie。** 请求头不会随表单或链接
+  自动携带，CSRF 在本场景由设计规避；不用 `localStorage` 是因为关掉标签页即失效，长期驻留风险更小。
+  这只是降低风险，不是安全边界——边界在服务端的验签与过期。
+- **页面不判权限。** 个人信息页能不能看，由服务端返回 200 还是 401 决定；前端没有"是不是管理员"
+  "该不该显示按钮"之类的判断，也没有靠隐藏入口实现鉴权。两次口令一致性之类的检查只算体验。
+- **所有来自服务端的文本先转义再写入页面。** 全站唯一转义点是
+  [`web/js/render.js`](web/js/render.js) 的 `escapeHtml()`（`& < > " '` 五个字符实体化），
+  各页面只调它、不各写一份。选择显式转义而不是 `textContent`，是因为验收要求"XSS 处置要在页面
+  源码里看得见"——`textContent` 不产生可截图的证据。兜底是响应头 CSP `script-src 'self'`。
+
+> `web/` 在本周被两名成员并行写过：合并时以本分支的四个页面与 `web/js/` 为准（它们有端到端走查与
+> XSS 证据），`web/serve.py` 取自另一版；被取代的 `web/assets/api.js`、`web/assets/style.css`
+> 已删除，避免仓库里留两套前端。
 
 ### 11.3 接口一览
 

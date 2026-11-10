@@ -30,7 +30,8 @@
 2. **令牌在自定义头里，表单带不了。** `<form>` 只能提交 `application/x-www-form-urlencoded`、
    `multipart/form-data`、`text/plain` 三种体，无法设置 `Authorization`。C-01 用跨站表单打退出接口，
    返回 401、会话未被撤销，正是这一步的实测。
-3. **CORS 白名单而非 `*`。** 预检只对 `127.0.0.1:5173` / `localhost:5173` 放行（C-03、C-04），
+3. **CORS 白名单而非 `*`。** 预检只对 `127.0.0.1:8080` / `127.0.0.1:5173` / `localhost:5173` 放行
+   （C-03、C-04），
    并且不带 `Access-Control-Allow-Credentials`。即使攻击者让浏览器把请求发出去，
    也读不到响应（C-05）。
 
