@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>登录 · CipherBook</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <span class="brand">CipherBook</span>
+  <nav>
+    <a href="/login.html" class="on">登录</a>
+    <a href="/register.html">注册</a>
+    <a href="/profile.html">个人信息</a>
+    <a href="/logout.html">退出</a>
+  </nav>
+</header>
+
+<main>
+  <div class="card">
+    <h1>登录</h1>
+    <p class="sub">用注册时的登录名或手机号登录，登录成功后进入个人信息页。</p>
+
+    <form id="loginForm">
+      <label for="account">登录名或手机号</label>
+      <input id="account" name="account" type="text" autocomplete="username"
+             required autofocus>
+
+      <label for="password">口令</label>
+      <input id="password" name="password" type="password"
+             autocomplete="current-password" required>
+
+      <button type="submit" id="submitBtn">登录</button>
+    </form>
+
+    <p id="msg" class="msg" role="alert" aria-live="polite"></p>
+    <p id="meta" class="meta"></p>
+
+    <p class="foot">还没有账号？<a href="/register.html">去注册</a></p>
+  </div>
+
+  <p class="note">
+    账号不存在与口令错误，页面显示的是同一句话，也不区分是哪一种；
+    这是服务端刻意为之，前端不做二次判断。
+  </p>
+</main>
+
+<script src="/assets/api.js"></script>
+<script>
+(function () {
+  "use strict";
+  var CB = window.CipherBook;
+  var form = document.getElementById("loginForm");
+  var btn = document.getElementById("submitBtn");
+  var msg = document.getElementById("msg");
+  var meta = document.getElementById("meta");
+
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    CB.clearMsg(msg, meta);
+
+    /* 只判空，不做格式拦截：格式与安全判断都在服务端，
+       前端拦下来只会让人误以为前端做了校验。 */
+    var account = document.getElementById("account").value.trim();
+    var password = document.getElementById("password").value;
+    if (!account || !password) {
+      CB.showError(msg, meta, { status: 400, data: null }, "请填写登录名和口令");
+      return;
+    }
+
+    CB.withBusy(btn, function () {
+      return CB.request("/api/auth/login", {
+        method: "POST",
+        auth: false,
+        body: { account: account, password: password }
+      });
+    }).then(function (res) {
+      if (!res.ok) {
+        CB.showError(msg, meta, res);
+        return;
+      }
+      CB.setToken(res.data.accessToken);
+      window.location.href = "/profile.html";
+    }).catch(function (err) {
+      CB.showError(msg, meta, { status: 0, data: null }, err.message);
+    });
+  });
+})();
+</script>
+</body>
+</html>
