@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>退出 · CipherBook</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <span class="brand">CipherBook</span>
+  <nav>
+    <a href="/login.html">登录</a>
+    <a href="/register.html">注册</a>
+    <a href="/profile.html">个人信息</a>
+    <a href="/logout.html" class="on">退出</a>
+  </nav>
+</header>
+
+<main>
+  <div class="card">
+    <h1>退出登录</h1>
+    <p class="sub">退出后服务端会撤销当前令牌，旧令牌再访问个人信息会被拒绝。</p>
+
+    <div id="confirmBox">
+      <button type="button" id="logoutBtn">确认退出</button>
+      <p class="foot"><a href="/profile.html">先不退出，返回个人信息</a></p>
+    </div>
+
+    <p id="msg" class="msg" role="alert" aria-live="polite"></p>
+    <p id="meta" class="meta"></p>
+
+    <div id="doneBox" hidden>
+      <p class="foot"><a href="/login.html">重新登录</a></p>
+    </div>
+  </div>
+
+  <p class="note">
+    撤销动作在服务端完成：该令牌的那一行被打上撤销时间，之后拿同一个令牌调
+    个人信息接口会返回 401。本地同时清掉 sessionStorage 里的令牌只是配套动作。
+  </p>
+</main>
+
+<script src="/assets/api.js"></script>
+<script>
+(function () {
+  "use strict";
+  var CB = window.CipherBook;
+  var btn = document.getElementById("logoutBtn");
+  var confirmBox = document.getElementById("confirmBox");
+  var doneBox = document.getElementById("doneBox");
+  var msg = document.getElementById("msg");
+  var meta = document.getElementById("meta");
+
+  function finish(text) {
+    CB.clearToken();
+    confirmBox.hidden = true;
+    doneBox.hidden = false;
+    CB.showOk(msg, meta, text);
+  }
+
+  btn.addEventListener("click", function () {
+    CB.clearMsg(msg, meta);
+
+    CB.withBusy(btn, function () {
+      return CB.request("/api/auth/logout", { method: "POST" });
+    }).then(function (res) {
+      if (res.status === 204) {
+        finish("已退出，当前令牌已在服务端撤销。");
+        return;
+      }
+      if (res.status === 401) {
+        /* 本来就没有有效登录状态（没令牌、或早已过期/撤销过）。
+           退出接口是幂等的，这里照样把本地清干净。 */
+        finish("当前没有有效的登录状态，本地令牌已清除。");
+        return;
+      }
+      /* 服务端没确认撤销，就不能假装已退出：保留令牌，如实报错。 */
+      CB.showError(msg, meta, res);
+    }).catch(function (err) {
+      CB.showError(msg, meta, { status: 0, data: null }, err.message);
+    });
+  });
+})();
+</script>
+</body>
+</html>
