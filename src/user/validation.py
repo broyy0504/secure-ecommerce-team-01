@@ -46,6 +46,7 @@ USERNAME_MIN, USERNAME_MAX = 4, 32
 PASSWORD_MIN, PASSWORD_MAX = 8, 64
 PASSWORD_MAX_BYTES = 256
 ACCOUNT_MIN, ACCOUNT_MAX = 4, 64
+NICKNAME_MIN, NICKNAME_MAX = 1, 32
 
 # 请求体上限（字节），按接口分别设定
 BODY_LIMITS: Dict[str, int] = {
@@ -53,14 +54,23 @@ BODY_LIMITS: Dict[str, int] = {
     "login": 2 * 1024,
     "logout": 1 * 1024,
     "me": 0,
+    "verify": 0,
 }
 
 USERNAME_RE = re.compile(r"[A-Za-z0-9_]{4,32}\Z")
 PHONE_RE = re.compile(r"1[3-9]\d{9}\Z")
 PHONE_SEPARATORS_RE = re.compile(r"[ \-]")
 
-ALLOWED_REGISTER = frozenset({"username", "phone", "password"})
+# 控制字符（含换行、制表、NUL）。昵称允许任何可打印字符，但不允许这些：
+# 它们会破坏日志的单行结构，也会在终端里伪造输出。
+CONTROL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f]")
+
+# nickname 是第 10-11 周新增的可选字段（变更说明 C-01）。允许 `<` `>` `"` `'`
+# 这些字符**是刻意的**：XSS 的处置方式是"原文入库、输出转义"，
+# 输入侧过滤尖括号既挡不住别的载荷，也把"转义做没做"这个验收点藏起来了。
+ALLOWED_REGISTER = frozenset({"username", "phone", "password", "nickname"})
 ALLOWED_LOGIN = frozenset({"account", "password"})
+
 
 # 契约里逐字列出的禁用字段：名字是常量，不是用户自由构造的，可以回给调用方
 FORBIDDEN_REGISTER: Tuple[str, ...] = (
@@ -135,9 +145,13 @@ class RegisterInput:
     username: str
     phone: str  # 已去空格与连字符
     password: Secret
+    nickname: str  # 原文（未转义）；转义在输出侧做，见 web/js/render.js
 
     def __repr__(self) -> str:
-        return f"RegisterInput(username={self.username!r}, phone={self.phone!r}, password=<redacted>)"
+        return (
+            f"RegisterInput(username={self.username!r}, phone={self.phone!r}, "
+            f"password=<redacted>)"
+        )
 
 
 @dataclass(frozen=True)
@@ -361,6 +375,36 @@ def _check_username(body: Mapping[str, Any], issues: _Issues) -> Optional[str]:
     return name
 
 
+def _check_nickname(
+    body: Mapping[str, Any], issues: _Issues, *, username: Optional[str]
+) -> str:
+    """昵称：可选，缺省时用登录名；1—32 字符；**不过滤尖括号等字符**。
+
+    为什么允许 `<script>`：XSS 的正解是"原文入库、输出转义"。在输入侧拦尖括号
+    只是把攻击面挪到别的载体（属性、URL、`onerror`），而验收要看的"页面源码里
+    是不是实体"反而看不到了。转义在 `web/js/render.js` 统一做，且只此一处。
+    """
+    if "nickname" not in body:
+        return username or ""
+
+    raw = _require_text(body, "nickname", issues)
+    if raw is None:
+        return username or ""
+
+    name = raw.strip()
+    if len(name) < NICKNAME_MIN:
+        issues.add("nickname", "TOO_SHORT")
+        return username or ""
+    if len(name) > NICKNAME_MAX:
+        issues.add("nickname", "TOO_LONG")
+        return username or ""
+    if CONTROL_CHARS_RE.search(name):
+        issues.add("nickname", "FORMAT_INVALID")
+        return username or ""
+
+    return name
+
+
 def _normalize_phone(raw: str) -> str:
     """只去空格与连字符，与契约一致；`+86` 前缀不处理（见说明文档"已知局限"）。"""
     return PHONE_SEPARATORS_RE.sub("", raw)
@@ -489,10 +533,13 @@ def validate_register(
     password = _check_password_register(
         body, issues, username=username, phone=phone
     )
+    nickname = _check_nickname(body, issues, username=username)
     issues.raise_if_any(stage="register", trace_id=tid)
 
     assert username is not None and phone is not None and password is not None
-    return RegisterInput(username=username, phone=phone, password=password)
+    return RegisterInput(
+        username=username, phone=phone, password=password, nickname=nickname
+    )
 
 
 def validate_login(
@@ -571,6 +618,30 @@ def validate_me(
     返回"被忽略的查询参数名"（已过滤成安全标识符），供调用方写审计。
     该接口的语义是"令牌对应的人"，多传参数只是探测行为，不改变结果。
     """
+    return _probe_entry(raw_body, query=query, stage="me", trace_id=trace_id)
+
+
+def validate_verify(
+    raw_body: RawBody = None,
+    *,
+    query: Optional[Mapping[str, Any]] = None,
+    trace_id: Optional[str] = None,
+) -> List[str]:
+    """鉴权校验入口：与"本人信息"同一套规则（无请求体、查询参数忽略）。
+
+    单列一个函数是为了让审计里的 `stage` 能区分是哪个接口被探测，
+    规则本身复用 `_probe_entry`，不复制第二份。
+    """
+    return _probe_entry(raw_body, query=query, stage="verify", trace_id=trace_id)
+
+
+def _probe_entry(
+    raw_body: RawBody,
+    *,
+    query: Optional[Mapping[str, Any]],
+    stage: str,
+    trace_id: Optional[str],
+) -> List[str]:
     tid = trace_id or new_trace_id()
 
     # 该接口不接受请求体：有体就 400，不需要再解析内容
@@ -579,7 +650,7 @@ def validate_me(
             get_logger(),
             "validation_failed",
             trace_id=tid,
-            stage="me",
+            stage=stage,
             reason="BODY_NOT_ALLOWED",
         )
         raise validation_error(trace_id=tid)
@@ -594,11 +665,30 @@ def validate_me(
             get_logger(),
             "ignored_query_param",
             trace_id=tid,
-            stage="me",
+            stage=stage,
             count=len(ignored),
             names=",".join(ignored[:8]),
         )
     return ignored
+
+
+def validate_user_path(raw: Any, *, trace_id: Optional[str] = None) -> int:
+    """路径参数 `{userId}`：1—19 位数字。格式不符直接 400，不落到查询。
+
+    越权验收用的辅助接口才有路径参数；`/api/users/me` 不接受任何用户标识。
+    """
+    tid = trace_id or new_trace_id()
+    text = raw if isinstance(raw, str) else ""
+    if not (1 <= len(text) <= 19) or not text.isdigit():
+        log_event(
+            get_logger(),
+            "validation_failed",
+            trace_id=tid,
+            stage="user_path",
+            reason="FORMAT_INVALID",
+        )
+        raise validation_error("userId", "FORMAT_INVALID", tid)
+    return int(text)
 
 
 __all__ = [
@@ -610,4 +700,6 @@ __all__ = [
     "validate_logout",
     "validate_me",
     "validate_register",
+    "validate_user_path",
+    "validate_verify",
 ]

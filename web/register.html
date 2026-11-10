@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src http://127.0.0.1:8000 http://localhost:8000; form-action 'none'; base-uri 'none'">
+<title>注册 · 在线书店</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<main class="wrap">
+  <div class="brand">
+    <h1>在线书店</h1>
+    <span>用户模块 · 第 10-11 周</span>
+  </div>
+
+  <section class="card">
+    <h2>注册</h2>
+    <p class="hint">注册成功会自动登录并跳到个人信息页。</p>
+
+    <div id="banner" class="banner" role="alert"></div>
+
+    <form id="register-form" novalidate>
+      <div class="field">
+        <label for="username">登录名</label>
+        <input id="username" name="username" type="text" autocomplete="username"
+               spellcheck="false" placeholder="4—32 位字母、数字或下划线">
+        <div class="note">只能用字母、数字、下划线，例如 reader_01</div>
+      </div>
+      <div class="field">
+        <label for="phone">手机号</label>
+        <input id="phone" name="phone" type="text" autocomplete="tel"
+               inputmode="numeric" placeholder="11 位手机号">
+      </div>
+      <div class="field">
+        <label for="password">口令</label>
+        <input id="password" name="password" type="password" autocomplete="new-password">
+        <div class="note">8—64 个字符。服务端加盐派生 60 万次，口令本身不落库。</div>
+      </div>
+      <div class="field">
+        <label for="nickname">昵称 <span class="opt">（可选）</span></label>
+        <input id="nickname" name="nickname" type="text" autocomplete="nickname"
+               placeholder="1—32 个字符，留空则用登录名">
+        <div class="note">昵称按原文存库、显示时转义，可以放心用符号。</div>
+      </div>
+      <button id="submit" type="submit">注册</button>
+    </form>
+
+    <p class="alt">已有账号？<a href="login.html">去登录</a></p>
+  </section>
+
+  <p class="foot">
+    注册接口 <code>POST /api/users/register</code> · 重复的登录名或手机号由服务端返回 409
+  </p>
+</main>
+
+<script src="js/api.js"></script>
+<script src="js/register.js"></script>
+</body>
+</html>

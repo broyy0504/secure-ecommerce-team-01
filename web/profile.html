@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src http://127.0.0.1:8000 http://localhost:8000; form-action 'none'; base-uri 'none'">
+<title>个人信息 · 在线书店</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<main class="wrap wide">
+  <div class="brand">
+    <h1>个人信息</h1>
+    <span>令牌里的那个人 · GET /api/users/me</span>
+  </div>
+
+  <div id="banner" class="banner" role="alert"></div>
+
+  <section class="card">
+    <h2 id="greeting">正在读取…</h2>
+    <p class="hint">下面每一项都来自服务端按令牌解析出的身份，前端没有传任何用户标识。</p>
+    <dl class="kv" id="profile"></dl>
+  </section>
+
+  <section class="card">
+    <h2>当前会话</h2>
+    <p class="hint">令牌原文不出现在页面里，也不写进 URL 或 Cookie。</p>
+    <dl class="kv" id="session"></dl>
+    <div class="actions">
+      <button id="refresh" type="button" class="btn ghost">重新拉取</button>
+      <a class="btn" href="logout.html">退出登录</a>
+    </div>
+  </section>
+
+  <p class="foot">
+    昵称按原文入库、输出转义：把昵称设成 <code>&lt;script&gt;alert(1)&lt;/script&gt;</code>，
+    页面源码里看到的是实体，页面上就是一行符号。<br>
+    接口 <code>GET /api/users/me</code> · <code>GET /api/auth/verify</code>
+  </p>
+</main>
+
+<script src="js/api.js"></script>
+<script src="js/render.js"></script>
+<script src="js/profile.js"></script>
+</body>
+</html>

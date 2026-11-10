@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src http://127.0.0.1:8000 http://localhost:8000; form-action 'none'; base-uri 'none'">
+<title>登录 · 在线书店</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<main class="wrap">
+  <div class="brand">
+    <h1>在线书店</h1>
+    <span>用户模块 · 第 10-11 周</span>
+  </div>
+
+  <section class="card">
+    <h2>登录</h2>
+    <p class="hint">用注册时的登录名或手机号登录。令牌只存在当前标签页，关掉即失效。</p>
+
+    <div id="banner" class="banner" role="alert"></div>
+
+    <form id="login-form" novalidate>
+      <div class="field">
+        <label for="account">账号</label>
+        <input id="account" name="account" type="text" autocomplete="username"
+               spellcheck="false" placeholder="登录名或手机号">
+      </div>
+      <div class="field">
+        <label for="password">口令</label>
+        <input id="password" name="password" type="password" autocomplete="current-password">
+      </div>
+      <button id="submit" type="submit">登录</button>
+    </form>
+
+    <p class="alt">还没有账号？<a href="register.html">去注册</a></p>
+  </section>
+
+  <p class="foot">
+    后端 <code>127.0.0.1:8000</code> · 接口文档 <code>docs/api/openapi.yaml</code><br>
+    前端不做安全判断：空着提交、格式不对，都由后端回话，页面只负责把话说明白。
+  </p>
+</main>
+
+<script src="js/api.js"></script>
+<script src="js/login.js"></script>
+</body>
+</html>

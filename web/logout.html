@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src http://127.0.0.1:8000 http://localhost:8000; form-action 'none'; base-uri 'none'">
+<title>退出登录 · 在线书店</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<main class="wrap">
+  <div class="brand">
+    <h1>退出登录</h1>
+    <span>撤销在服务端生效 · POST /api/auth/logout</span>
+  </div>
+
+  <div id="banner" class="banner" role="alert"></div>
+
+  <section class="card">
+    <h2 id="who">正在确认当前会话…</h2>
+    <p class="hint">
+      退出不是"删本地字符串"：服务端会把这条会话标记为已撤销，
+      这枚令牌之后再用一律 401，换台设备也登不回来。
+    </p>
+    <dl class="kv" id="session"></dl>
+    <div class="actions">
+      <button id="confirm" type="button">确认退出</button>
+      <a class="btn ghost" href="profile.html">留在当前页</a>
+    </div>
+  </section>
+
+  <p class="foot">
+    已经退出的令牌再调一次退出，仍返回 <code>204</code>——幂等，且不额外确认"这枚令牌曾经有效"。<br>
+    演示"退出后重放旧令牌"的完整步骤见 <code>docs/test/week10-11/04-会话劫持.md</code>
+  </p>
+</main>
+
+<script src="js/api.js"></script>
+<script src="js/render.js"></script>
+<script src="js/logout.js"></script>
+</body>
+</html>

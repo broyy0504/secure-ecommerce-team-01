@@ -173,3 +173,129 @@ python test/test_input_validation.py
 > **边界**：本层只判"请求是否合法"，不判"账号是否存在、令牌是否有效"；限流与锁定、
 > 数据库唯一约束、鉴权中间件均不在本层（对应整改条目 R-D-01、R-D-06、R-D-03）。
 > 已知局限 12 条见 [`src/user/输入校验与说明.md`](src/user/输入校验与说明.md) §6。
+
+## 十一、第 10-11 周：用户模块可演示原型与 II 阶段交接
+
+第 9 周交的注册与登录是这两周的地基。本周只做一件事：把用户模块做成**能现场演示的原型**
+（浏览器里走完注册、登录、个人信息、退出），并把项目 II 接手要用的材料备齐。
+商品、购物车、下单、支付、证书认证属项目 II，本期**只留契约、不实现**。
+
+### 11.1 交付物
+
+| 交付项 | 在哪 | 状态 |
+| :--- | :--- | :--- |
+| 用户模块补齐（个人信息、登录态鉴权、退出即撤销，令牌校验收敛成一个函数） | [`src/user/`](src/user/)：`auth.py`、`auth_service.py`、`server.py` | 已完成 |
+| 前端界面（注册、登录、个人信息、退出四个页面） | [`web/`](web/)，说明见 [`web/README.md`](web/README.md) | 已完成 |
+| 安全测试记录（注入、XSS、CSRF、会话劫持、越权） | [`docs/test/week10-11/`](docs/test/week10-11/) | 已完成，47 项全过 |
+| 接口文档（OpenAPI 3.0，五个接口） | [`docs/api/openapi.yaml`](docs/api/openapi.yaml)，导入说明见 [`docs/api/README.md`](docs/api/README.md) | 已完成 |
+| 项目 II 交接契约（用户表冻结、订单主键、商品与支付接口预留） | [`docs/handover/`](docs/handover/) | 已完成 |
+| 主流程验收脚本（75 项） | [`test/test_user_flow.py`](test/test_user_flow.py) | 已完成 |
+
+### 11.2 怎么建库、怎么起、怎么试
+
+**建库（空库一条命令）**
+
+```bash
+python -m src.user.db init          # 建表，打印库文件路径（默认 var/auth.db）
+python -m src.user.db init --drop   # 本地重置（删表重建）
+```
+
+库文件默认落在 `var/auth.db`，`var/` 已在 `.gitignore`——**运行时生成的库不进仓库**。
+换路径用环境变量 `AUTH_DB=/tmp/demo.db`。
+
+**起后端**
+
+```bash
+python -m src.user.server           # http://127.0.0.1:8000
+```
+
+启动时会打印库路径、CORS 白名单、限流是否开启。`GET /health` 可探活。
+
+**起前端**（前后端分离，两个进程）
+
+```bash
+python -m http.server 5173 -d web   # http://127.0.0.1:5173/login.html
+```
+
+换端口时要同步放行：`AUTH_ALLOWED_ORIGINS="http://127.0.0.1:5500" python -m src.user.server`。
+
+**怎么试**
+
+```bash
+python test/test_user_flow.py                    # 主流程 75 项：建表→注册→登录→鉴权→退出→越权→锁定→限流
+python test/test_input_validation.py             # 第 9 周输入校验 169 项（未改动，全过）
+python test/security/week10-11_security_tests.py # 五类安全测试 47 项，输出即 docs 里的表格
+node test/security/xss_render_check.js           # XSS"页面源码为实体"8 项（用页面同一份转义函数）
+```
+
+浏览器里：注册 →（自动登录）→ 个人信息 → 退出登录 → 确认退出 → 回登录页。
+中途不需要手工插数据、不需要改配置。
+
+### 11.3 接口一览
+
+| 方法与路径 | 说明 | 鉴权 |
+| :--- | :--- | :--- |
+| `POST /api/users/register` | 注册（`username` / `phone` / `password` / 可选 `nickname`） | 公开 + 限流 |
+| `POST /api/auth/login` | 登录，返回 `accessToken`（2 小时） | 公开 + 限流 |
+| `POST /api/auth/logout` | 退出，服务端撤销当前会话，幂等返回 204 | Bearer |
+| `GET /api/users/me` | 个人信息，身份只从令牌解析 | Bearer |
+| `GET /api/auth/verify` | 鉴权校验，返回剩余有效期 | Bearer |
+| `GET /api/users/{userId}` | 越权验收辅助接口：非本人一律 404 | Bearer |
+| 其余 9 条（商品/购物车/下单/订单/支付/证书） | 路由已存在，返回 `501 NOT_IMPLEMENTED`，不返回假数据 | — |
+
+鉴权只有一个出口：`src/user/auth.py` 的 `require_auth()`，所有受保护路由的第一行都是它。
+
+### 11.4 安全测试结论（摘要）
+
+| 类别 | 项数 | 结果 | 一句话 |
+| :--- | :---: | :---: | :--- |
+| SQL 注入 | 15 | 全过 | 白名单 + 参数化；12 个响应体里表名/SQL/栈命中 0 |
+| XSS | 8 | 全过 | 原文入库、实体输出；标签/属性/SVG 三类载荷均转义，页面无内联脚本 + CSP 兜底 |
+| CSRF | 5 | 全过 | **由设计规避**：无 Cookie、令牌只在自定义头、CORS 白名单 |
+| 会话劫持 | 9 | 全过 | 改一字节 / 拼身份 / 退出重放 三枪全拒；库里只存摘要 |
+| 越权 | 10 | 全过 | 越权 404 且与"不存在"同形；身份字段一律 400 |
+
+三处判定按任务书口径写死：有效的记"通过"，靠架构消除前提的记"**由设计规避**"（附前提与失效条件），
+需求文档没提的记"**未登记**"。CSRF 属于第三种——威胁清单 31 条与 SR 20 条里都没有它，
+已在 [`docs/test/week10-11/03-CSRF.md`](docs/test/week10-11/03-CSRF.md) §3 给出补登记建议
+（`T-SP-07` / `SR-21`）交 II 阶段。
+
+### 11.5 给项目 II 的交接
+
+| 文件 | 冻结了什么 |
+| :--- | :--- |
+| [`01-用户表与身份字段冻结清单.md`](docs/handover/01-用户表与身份字段冻结清单.md) | 用户表 15 列、7 项身份字段、会话与登录审计两张表、6 条变更记录、已知局限 |
+| [`02-订单主键定义.md`](docs/handover/02-订单主键定义.md) | `order_id`（自增主键）+ `order_no`（20 字符对外编号）的名称、类型、生成规则、DDL |
+| [`03-商品与支付接口预留.md`](docs/handover/03-商品与支付接口预留.md) | 9 条预留路由的签名、返回、错误码、禁用字段、事务要求 |
+
+规则一句话：**只能加字段，不能改名、改类型、改含义**。要改就写变更记录并同步三处
+（`db/schema.sql`、`src/user/db.py`、`openapi.yaml`），否则 II 会接手两份不一样的表。
+
+### 11.6 本周边界与已知局限
+
+- 不实现商品、购物车、下单、支付、证书认证；不接第三方登录、不做短信真实下发。这五类字段
+  **没有**提前塞进用户表（`03` §4 列了原因）。
+- `phone_hash` 是无密钥 SHA-256：只防明文落库，不防枚举反推；II 阶段换 HMAC 或加密列。
+- 限流计数在进程内存：多实例部署会各算各的，需要换共享存储。
+- 角色表（`app_role` / `user_role_relation`）本期不建，角色固定为 `buyer`；"角色不允许 → 403"
+  这条分支要等 II 阶段接角色表才能验收。
+- CSRF 的规避依赖"不用 Cookie"，一旦引入 Cookie 会话必须重测。
+
+### 11.7 目录（本周新增部分）
+
+```text
+src/user/
+├── auth.py            # 唯一鉴权函数 require_auth()
+├── auth_service.py    # 注册/登录/退出/个人信息/鉴权校验的业务与落库
+├── ratelimit.py       # 登录与注册的滑动窗口限流
+├── tokens.py          # 令牌签发、摘要、形状校验
+├── timeutil.py        # ISO-8601 UTC 时间口径
+├── db.py              # SQLite 建表（口径对齐 db/schema.sql）
+└── validation.py      # 入口校验（第 9 周交付，本周接进服务）
+web/                   # 四个页面 + 共享 JS/CSS（见 web/README.md）
+docs/test/week10-11/   # 五类安全测试记录
+docs/api/              # OpenAPI 3.0 与导入说明
+docs/handover/         # II 阶段交接契约
+test/test_user_flow.py # 主流程验收 75 项
+test/security/         # 安全测试脚本与夹具
+```

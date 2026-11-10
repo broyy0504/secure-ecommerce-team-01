@@ -1,0 +1,755 @@
+openapi: 3.0.3
+
+info:
+  title: 在线书店 · 用户模块 API
+  version: 1.0.0
+  description: |
+    第 10-11 周交付：用户模块的五个接口（注册、登录、退出、个人信息、鉴权校验），
+    另附一个越权验收辅助接口 `GET /api/users/{userId}`。
+
+    **每个接口在 description 里按四要素写全**：输入约束、输出、错误码、鉴权。
+    错误码只允许出现 `components.schemas.ErrorResponse.code` 里枚举的那一组——
+    与 `src/user/errors.py` 的封闭集逐字一致。
+
+    **本文件不含真实地址、密钥与账号**：`servers` 只写本机回环地址与演示端口，
+    示例里的手机号、登录名、令牌均为占位值。
+
+    安全边界（与 `docs/design/03-接口契约.md` 一致，本期落了代码）：
+    - 身份只有一个来源：`Authorization: Bearer <token>`；请求体、查询串里的身份字段一律 400。
+    - 越权访问他人资源返回 `404` 而不是 `403`（403 等于确认资源存在）。
+    - 登录失败四种情况（账号不存在/口令错/锁定/停用）返回同一个 `401 AUTH_INVALID_CREDENTIALS`。
+    - 令牌是 32 字节随机值，服务端只存 SHA-256 摘要，有效期 2 小时，退出即撤销。
+  contact:
+    name: 第 1 组（安全电子商务系统 I）
+  license:
+    name: 课程作业，仅用于教学演示
+
+servers:
+  - url: http://127.0.0.1:8000
+    description: 本地演示（默认端口；后端可用环境变量 AUTH_PORT 覆盖）
+
+tags:
+  - name: 认证
+    description: 登录、退出、鉴权校验
+  - name: 用户
+    description: 注册与个人信息
+
+paths:
+  /api/users/register:
+    post:
+      tags: [用户]
+      operationId: registerUser
+      summary: 注册
+      description: |
+        **输入约束**
+        - 传输：`Content-Type: application/json; charset=utf-8`，请求体 ≤ 4 KB（超过返回 413）。
+        - `username` 必填，字符串，去首尾空白后 4—32 字符，匹配 `^[A-Za-z0-9_]{4,32}$`。
+        - `phone` 必填，字符串，去空格与连字符后匹配 `^1[3-9]\d{9}$`。
+        - `password` 必填，字符串，8—64 字符且 UTF-8 字节数 ≤ 256，不得全为同一字符，不得等于 `username` 或 `phone`。
+        - `nickname` 可选，字符串，去首尾空白后 1—32 字符，不得含控制字符（`\x00-\x1f`、`\x7f`）；
+          缺省时取 `username`。**刻意不过滤 `<` `>` `"` `'`**：XSS 的处置是"原文入库、输出转义"。
+        - 禁用字段：`userId`、`role`、`status`、`iterations`、`salt`、`passwordHash`、`passwordDerived`，
+          出现任一即 400，不静默忽略；其余未知字段同样 400（`additionalProperties: false`）。
+
+        **输出**
+        - `201`：`{userId, username, nickname, phoneMasked, status, createdAt}`，响应头 `Cache-Control: no-store`。
+        - 不返回：口令、派生值、盐、迭代次数、手机号明文、任何内部列名。
+
+        **错误码**
+        - `VALIDATION_ERROR`(400)、`USER_ALREADY_EXISTS`(409)、`PAYLOAD_TOO_LARGE`(413)、
+          `RATE_LIMITED`(429)、`INTERNAL_ERROR`(500)。
+        - 409 的文案固定为"该登录名或手机号已被使用"，不指出是哪一项冲突。
+
+        **鉴权**
+        - 公开接口，不需要令牌。
+        - 限流：单 IP 10 次 / 小时（`AUTH_RL_REGISTER_IP_LIMIT` 可调）。
+
+        > 备注：`nickname` 是本周期新增字段，变更说明见 `docs/handover/01-用户表与身份字段冻结清单.md` §5（C-01）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            examples:
+              最小请求:
+                value:
+                  username: reader_01
+                  phone: "13800138000"
+                  password: "BookStore#2026"
+              带昵称:
+                value:
+                  username: reader_01
+                  phone: "13800138000"
+                  password: "BookStore#2026"
+                  nickname: 书虫
+      responses:
+        '201':
+          description: 注册成功
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+              examples:
+                成功:
+                  value:
+                    userId: "1"
+                    username: reader_01
+                    nickname: 书虫
+                    phoneMasked: "138****8000"
+                    status: active
+                    createdAt: "2026-11-10T00:56:55.883Z"
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          description: 登录名或手机号已被使用
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                冲突:
+                  value:
+                    code: USER_ALREADY_EXISTS
+                    message: 该登录名或手机号已被使用
+                    traceId: "f1c70e23f815cb0e"
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/auth/login:
+    post:
+      tags: [认证]
+      operationId: login
+      summary: 登录
+      description: |
+        **输入约束**
+        - 传输：`Content-Type: application/json`，请求体 ≤ 2 KB。
+        - `account` 必填，字符串 4—64 字符，允许登录名格式或手机号格式（服务端归一化后再查）。
+        - `password` 必填，8—64 字符；登录阶段**不做强度判断**，只校验长度（强度在注册时把关）。
+        - 禁用字段：`role`、`userId`、`iterations`、`salt`、`rememberMe`；其余未知字段一律 400。
+
+        **输出**
+        - `200`：`{accessToken, tokenType, expiresIn, user{userId, username, nickname, role}}`，
+          响应头 `Cache-Control: no-store`。
+        - 令牌只在这一次响应里出现；服务端不再下发，也不返回摘要。
+
+        **错误码**
+        - `VALIDATION_ERROR`(400)、`AUTH_INVALID_CREDENTIALS`(401)、`RATE_LIMITED`(429)、`INTERNAL_ERROR`(500)。
+        - **账号不存在、口令错误、账号被锁定、账号被停用四种情况，一律 `401 AUTH_INVALID_CREDENTIALS`**，
+          文案逐字相同，不附加任何区分性提示；前三种还会各跑一次 PBKDF2 让耗时同量级。
+
+        **鉴权**
+        - 公开接口，不需要令牌。
+        - 限流：单 IP 30 次 / 15 分钟；单账号 10 次 / 15 分钟（只计失败，成功后清零）。
+        - 连续失败 5 次锁定 10 分钟，锁定期间即使口令正确也返回同一个 401。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              登录名登录:
+                value:
+                  account: reader_01
+                  password: "BookStore#2026"
+              手机号登录:
+                value:
+                  account: "13800138000"
+                  password: "BookStore#2026"
+      responses:
+        '200':
+          description: 登录成功
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+              examples:
+                成功:
+                  value:
+                    accessToken: "ytYHNknAZDDRVYEY3L-Ic89sN4G5cwRPTWjc6HQFAE0"
+                    tokenType: Bearer
+                    expiresIn: 7200
+                    user:
+                      userId: "1"
+                      username: reader_01
+                      nickname: 书虫
+                      role: buyer
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          description: 账号或密码错误（四种失败情况同一响应）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                失败:
+                  value:
+                    code: AUTH_INVALID_CREDENTIALS
+                    message: 账号或密码错误
+                    traceId: "91cb249af7fb7706"
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/auth/logout:
+    post:
+      tags: [认证]
+      operationId: logout
+      summary: 退出登录
+      description: |
+        **输入约束**
+        - 允许完全不传 body，也允许传空对象 `{}`；请求体 ≤ 1 KB。
+        - 若传了 body 且含任何字段，一律 400——撤销哪个会话由请求头里的令牌决定，
+          不接受 `userId`、`sessionId`、`token` 一类参数。
+
+        **输出**
+        - `204 No Content`，无响应体。
+        - 已撤销的令牌再次调用仍返回 `204`（幂等），不返回 `401`——返回 401 会额外确认
+          "这枚令牌曾经有效"。
+
+        **错误码**
+        - `AUTH_UNAUTHENTICATED`(401)（令牌缺失、格式非法、不存在、已被撤销）、
+          `AUTH_TOKEN_EXPIRED`(401)、`VALIDATION_ERROR`(400)（附带了字段）、`INTERNAL_ERROR`(500)。
+
+        **鉴权**
+        - 必须携带有效令牌；只撤销**当前请求所用令牌对应的那一个会话**，不影响该用户其它设备。
+        - 撤销在服务端生效（写 `revoked_at`），不依赖客户端删除本地副本。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              description: 允许空对象或完全不传
+            examples:
+              空对象:
+                value: {}
+      responses:
+        '204':
+          description: 已撤销（幂等）
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/users/me:
+    get:
+      tags: [用户]
+      operationId: getMyProfile
+      summary: 查询本人信息
+      description: |
+        **输入约束**
+        - 不接受任何请求参数，也不接受请求体（有体即 400）。
+        - 出现 `userId`、`id` 一类查询参数时**忽略并记审计**——该接口的语义就是"令牌对应的人"，
+          多传参数本身就是探测行为，不改变返回结果。
+
+        **输出**
+        - `200`：`{userId, username, nickname, phoneMasked, emailMasked, status, lastLoginAt, createdAt}`。
+        - 手机号固定脱敏；`emailMasked` 本期固定 `null`（不采集邮箱，字段留给 II 阶段）。
+        - 不返回：口令四列、令牌、手机号明文、其它任何用户的数据。
+
+        **错误码**
+        - `AUTH_UNAUTHENTICATED`(401)、`AUTH_TOKEN_EXPIRED`(401)、`INTERNAL_ERROR`(500)。
+
+        **鉴权**
+        - Bearer 令牌；身份**只**从令牌解析，角色不限。
+        - 不接收用户标识，因此不存在"比对参数"这一步——"查的是自己"由接口形状保证。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 本人信息
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+              examples:
+                成功:
+                  value:
+                    userId: "1"
+                    username: reader_01
+                    nickname: 书虫
+                    phoneMasked: "138****8000"
+                    emailMasked: null
+                    status: active
+                    lastLoginAt: "2026-11-10T00:57:10.845Z"
+                    createdAt: "2026-11-10T00:56:55.883Z"
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/auth/verify:
+    get:
+      tags: [认证]
+      operationId: verifyToken
+      summary: 鉴权校验
+      description: |
+        **输入约束**
+        - 不接受请求参数与请求体（有体即 400）；查询参数忽略并记审计。
+        - 不接受"过期时间"一类参数：有效期由服务端决定，客户端不能延长。
+
+        **输出**
+        - `200`：`{valid, userId, username, issuedAt, expiresAt, expiresIn}`；
+          `expiresIn` 是剩余秒数，供前端决定是否提前引导重新登录。
+        - 不返回令牌，也不返回摘要。
+
+        **错误码**
+        - `AUTH_UNAUTHENTICATED`(401)、`AUTH_TOKEN_EXPIRED`(401)、`INTERNAL_ERROR`(500)。
+
+        **鉴权**
+        - Bearer 令牌；与其它受保护接口调用同一个鉴权函数（`src/user/auth.py` 的 `require_auth`），
+          不存在"这个接口放松一点"的分支。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 令牌有效
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyResponse'
+              examples:
+                有效:
+                  value:
+                    valid: true
+                    userId: "1"
+                    username: reader_01
+                    issuedAt: "2026-11-10T00:57:10.845Z"
+                    expiresAt: "2026-11-10T02:57:10.845Z"
+                    expiresIn: 7199
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/users/{userId}:
+    get:
+      tags: [用户]
+      operationId: getUserProfileById
+      summary: 按编号查个人信息（越权验收辅助接口）
+      description: |
+        本接口是 `/api/users/me` 的**辅助面**，只用于验收"归属校验必须在服务端做一遍"：
+        路径里给了编号，服务端才有机会演示 404 而不是 403。前端主流程只用 `/me`。
+
+        **输入约束**
+        - 路径参数 `userId` 必填，1—19 位数字；格式不符直接 400，不落到查询。
+        - 不接受请求体；请求里出现的其它用户标识不作为授权依据。
+
+        **输出**
+        - `200`：与 `/api/users/me` 同一份结构（仅在 `userId` 等于令牌本人时）。
+        - `404`：编号不属于当前用户，或编号不存在——**两者响应体逐字一致**（除 `traceId`），
+          不返回目标用户的任何字段。
+
+        **错误码**
+        - `VALIDATION_ERROR`(400)、`AUTH_UNAUTHENTICATED`(401)、`AUTH_TOKEN_EXPIRED`(401)、
+          `RESOURCE_NOT_FOUND`(404)、`INTERNAL_ERROR`(500)。
+
+        **鉴权**
+        - Bearer 令牌；先鉴权（匿名一律 401），再判归属（不一致一律 404），并记 `authz_denied` 审计。
+        - 返回 403 会把"编号存在"这件事告诉对方，因此本接口**不用 403**。
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: 用户编号，1—19 位数字
+          schema:
+            type: string
+            pattern: '^[0-9]{1,19}$'
+          example: "1"
+      responses:
+        '200':
+          description: 本人信息（仅当编号等于令牌本人）
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: 不存在，或不属于当前用户（两者同形）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                不存在或越权:
+                  value:
+                    code: RESOURCE_NOT_FOUND
+                    message: 资源不存在
+                    traceId: "6d92f5aa2d662cb8"
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+      description: |
+        登录接口返回的 `accessToken`，43 个 base64url 字符（32 字节随机值）。
+        只放在 `Authorization: Bearer <token>` 头里，不接受放进 URL 或 Cookie。
+
+  headers:
+    NoStore:
+      description: 令牌与个人信息一律不缓存
+      schema:
+        type: string
+        example: no-store
+
+  responses:
+    ValidationError:
+      description: 请求参数不合法（字段缺失、类型错、超长、格式不符、出现禁用字段、未知字段）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            字段格式不符:
+              value:
+                code: VALIDATION_ERROR
+                message: 请求参数不合法
+                traceId: "0f3c1b7e9a2d4c56"
+                details:
+                  - field: username
+                    reason: FORMAT_INVALID
+            出现禁用字段:
+              value:
+                code: VALIDATION_ERROR
+                message: 请求参数不合法
+                traceId: "0f3c1b7e9a2d4c57"
+                details:
+                  - field: role
+                    reason: NOT_ALLOWED
+    PayloadTooLarge:
+      description: 请求体超过该接口声明的体积上限
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            过大:
+              value:
+                code: PAYLOAD_TOO_LARGE
+                message: 请求体过大
+                traceId: "0f3c1b7e9a2d4c58"
+    RateLimited:
+      description: 超过该接口的频率阈值
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            限流:
+              value:
+                code: RATE_LIMITED
+                message: 请求过于频繁，请稍后再试
+                traceId: "0f3c1b7e9a2d4c59"
+    Unauthorized:
+      description: 令牌缺失、格式非法、被篡改、已撤销或已过期
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            未登录:
+              value:
+                code: AUTH_UNAUTHENTICATED
+                message: 登录状态无效，请重新登录
+                traceId: "12433081068f748e"
+            已过期:
+              value:
+                code: AUTH_TOKEN_EXPIRED
+                message: 登录已过期，请重新登录
+                traceId: "5b0c9f31a7e24d18"
+    InternalError:
+      description: 未预期异常（响应只含 code/message/traceId，不含异常类型与栈）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            服务端异常:
+              value:
+                code: INTERNAL_ERROR
+                message: 服务暂时不可用，请稍后再试
+                traceId: "7a1e4c90bb2f3d55"
+
+  schemas:
+    RegisterRequest:
+      type: object
+      additionalProperties: false
+      required: [username, phone, password]
+      properties:
+        username:
+          type: string
+          minLength: 4
+          maxLength: 32
+          pattern: '^[A-Za-z0-9_]{4,32}$'
+          description: 登录名，去首尾空白后 4—32 位字母/数字/下划线
+          example: reader_01
+        phone:
+          type: string
+          description: 11 位手机号；服务端会去掉空格与连字符后校验
+          example: "13800138000"
+          pattern: '^1[3-9][0-9]{9}$'
+        password:
+          type: string
+          minLength: 8
+          maxLength: 64
+          writeOnly: true
+          description: |
+            8—64 字符，UTF-8 字节数 ≤ 256，不得全为同一字符，不得等于用户名或手机号。
+            只用于服务端 PBKDF2 派生（60 万次迭代、16 字节盐、32 字节派生值），不落库。
+        nickname:
+          type: string
+          minLength: 1
+          maxLength: 32
+          description: |
+            可选。原文入库、输出转义；允许 `<` `>` 等字符，不允许控制字符。
+            缺省时取 `username`。
+          example: 书虫
+
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [account, password]
+      properties:
+        account:
+          type: string
+          minLength: 4
+          maxLength: 64
+          description: 登录名或手机号
+          example: reader_01
+        password:
+          type: string
+          minLength: 8
+          maxLength: 64
+          writeOnly: true
+          description: 只校验长度，不做强度判断
+          example: "BookStore#2026"
+
+    RegisterResponse:
+      type: object
+      additionalProperties: false
+      required: [userId, username, nickname, phoneMasked, status, createdAt]
+      properties:
+        userId:
+          type: string
+          pattern: '^[0-9]{1,19}$'
+          example: "1"
+        username:
+          type: string
+          example: reader_01
+        nickname:
+          type: string
+          nullable: true
+          example: 书虫
+        phoneMasked:
+          type: string
+          example: "138****8000"
+        status:
+          $ref: '#/components/schemas/AccountStatus'
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-11-10T00:56:55.883Z"
+
+    LoginResponse:
+      type: object
+      additionalProperties: false
+      required: [accessToken, tokenType, expiresIn, user]
+      properties:
+        accessToken:
+          type: string
+          minLength: 43
+          maxLength: 43
+          description: 32 字节随机值的 base64url 编码；只在本次响应出现
+          example: "ytYHNknAZDDRVYEY3L-Ic89sN4G5cwRPTWjc6HQFAE0"
+        tokenType:
+          type: string
+          enum: [Bearer]
+          example: Bearer
+        expiresIn:
+          type: integer
+          maximum: 7200
+          example: 7200
+        user:
+          type: object
+          additionalProperties: false
+          required: [userId, username, nickname, role]
+          properties:
+            userId:
+              type: string
+              example: "1"
+            username:
+              type: string
+              example: reader_01
+            nickname:
+              type: string
+              nullable: true
+              example: 书虫
+            role:
+              type: string
+              enum: [buyer]
+              description: 本期只有买家；角色表留到 II 阶段
+              example: buyer
+
+    UserProfile:
+      type: object
+      additionalProperties: false
+      required: [userId, username, nickname, phoneMasked, emailMasked, status, lastLoginAt, createdAt]
+      properties:
+        userId:
+          type: string
+          pattern: '^[0-9]{1,19}$'
+          example: "1"
+        username:
+          type: string
+          example: reader_01
+        nickname:
+          type: string
+          nullable: true
+          example: 书虫
+        phoneMasked:
+          type: string
+          example: "138****8000"
+        emailMasked:
+          type: string
+          nullable: true
+          description: 本期不采集邮箱，固定为 null；II 阶段加列后才有值
+          example: null
+        status:
+          $ref: '#/components/schemas/AccountStatus'
+        lastLoginAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 本次登录之前的上次登录时间；首次登录为 null
+          example: "2026-11-10T00:57:10.845Z"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-11-10T00:56:55.883Z"
+
+    VerifyResponse:
+      type: object
+      additionalProperties: false
+      required: [valid, userId, username, issuedAt, expiresAt, expiresIn]
+      properties:
+        valid:
+          type: boolean
+          example: true
+        userId:
+          type: string
+          example: "1"
+        username:
+          type: string
+          example: reader_01
+        issuedAt:
+          type: string
+          format: date-time
+          example: "2026-11-10T00:57:10.845Z"
+        expiresAt:
+          type: string
+          format: date-time
+          example: "2026-11-10T02:57:10.845Z"
+        expiresIn:
+          type: integer
+          description: 剩余有效秒数
+          example: 7199
+
+    AccountStatus:
+      type: string
+      enum: [active, locked, disabled]
+      description: |
+        `active` 正常；`locked` 连续失败达阈值被锁（对外仍按 401 处理，不透露状态）；
+        `disabled` 停用。
+
+    ErrorDetail:
+      type: object
+      additionalProperties: false
+      required: [field, reason]
+      properties:
+        field:
+          type: string
+          description: 请求字段名（白名单内），不出现数据库列名
+          enum: [username, phone, password, nickname, account, userId]
+        reason:
+          type: string
+          enum: [REQUIRED, TYPE_MISMATCH, TOO_SHORT, TOO_LONG, FORMAT_INVALID, OUT_OF_RANGE, NOT_ALLOWED, DUPLICATE]
+
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [code, message, traceId]
+      properties:
+        code:
+          type: string
+          description: 封闭错误码集合，与 src/user/errors.py 逐字一致
+          enum:
+            - VALIDATION_ERROR
+            - PAYLOAD_TOO_LARGE
+            - AUTH_INVALID_CREDENTIALS
+            - AUTH_UNAUTHENTICATED
+            - AUTH_TOKEN_EXPIRED
+            - AUTH_FORBIDDEN
+            - RESOURCE_NOT_FOUND
+            - USER_ALREADY_EXISTS
+            - ORDER_STOCK_INSUFFICIENT
+            - IDEMPOTENCY_CONFLICT
+            - PAY_AMOUNT_MISMATCH
+            - PAY_SIGNATURE_INVALID
+            - RATE_LIMITED
+            - INTERNAL_ERROR
+        message:
+          type: string
+          description: 固定文案，不解释内部状态
+          example: 请求参数不合法
+        traceId:
+          type: string
+          pattern: '^[0-9a-f]{16}$'
+          description: 与服务端日志共用的追踪编号
+          example: "0f3c1b7e9a2d4c56"
+        details:
+          type: array
+          description: 可省略；只含字段名与原因枚举，不回显用户提交的原值
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
