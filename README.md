@@ -191,6 +191,10 @@ python test/test_input_validation.py
 | 项目 II 交接契约（用户表冻结、订单主键、商品与支付接口预留） | [`docs/handover/`](docs/handover/) | 已完成 |
 | 主流程验收脚本（75 项） | [`test/test_user_flow.py`](test/test_user_flow.py) | 已完成 |
 
+任务书 §五还要求"按交付项拆 Issue、每名成员至少一条"：已建 `#18`—`#27` 共 10 条，
+逐条指派到人，映射表在 [`docs/meeting-notes/week10-11-issues.md`](docs/meeting-notes/week10-11-issues.md)。
+验收版本是标签 `week10-11-submission` 指向的提交。
+
 ### 11.2 怎么建库、怎么起、怎么试
 
 **建库（空库一条命令）**
