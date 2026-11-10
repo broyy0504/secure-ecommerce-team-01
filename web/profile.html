@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>个人信息 · CipherBook</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <span class="brand">CipherBook</span>
+  <nav>
+    <a href="/login.html">登录</a>
+    <a href="/register.html">注册</a>
+    <a href="/profile.html" class="on">个人信息</a>
+    <a href="/logout.html">退出</a>
+  </nav>
+</header>
+
+<main>
+  <div class="card">
+    <h1>个人信息</h1>
+    <p class="sub">本页打开时用当前令牌向服务端查询一次，页面不缓存用户资料。</p>
+
+    <div id="body">
+      <p class="sub" id="loading">正在查询…</p>
+
+      <table class="kv" id="kv" hidden>
+        <tbody>
+          <tr><th>用户标识</th><td id="v-userId"></td></tr>
+          <tr><th>登录名</th><td id="v-username"></td></tr>
+          <tr><th>手机号</th><td id="v-phone"></td></tr>
+          <tr><th>账号状态</th><td id="v-status"></td></tr>
+          <tr><th>注册时间</th><td id="v-createdAt"></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p id="msg" class="msg" role="alert" aria-live="polite"></p>
+    <p id="meta" class="meta"></p>
+
+    <p class="foot"><a href="/logout.html">退出登录</a></p>
+  </div>
+
+  <p class="note">
+    没有令牌、令牌被改过一个字节、已经退出过，这三种情况都会由服务端返回 401，
+    页面原样把结果说出来，本地不做“看起来已经登录”的放行。
+  </p>
+</main>
+
+<script src="/assets/api.js"></script>
+<script>
+(function () {
+  "use strict";
+  var CB = window.CipherBook;
+  var msg = document.getElementById("msg");
+  var meta = document.getElementById("meta");
+  var loading = document.getElementById("loading");
+  var kv = document.getElementById("kv");
+
+  var STATUS_LABEL = { active: "正常", disabled: "已停用", locked: "已锁定" };
+
+  /* 服务端返回的是 ISO 时间串，带 6 位小数，直接用 new Date() 会解析成 Invalid Date。
+     这里只做字符串重排，不做时区换算，末尾标明 UTC，免得显示的比实际早 8 小时。 */
+  function formatTime(iso) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/.exec(iso || "");
+    return m ? m[1] + "-" + m[2] + "-" + m[3] + " " + m[4] + ":" + m[5] + ":" + m[6] + "（UTC）"
+             : String(iso || "");
+  }
+
+  function fill(id, value) {
+    /* 服务端返回的字符串一律按文本写入，避免被当成 HTML 解析 */
+    CB.setText(document.getElementById(id), value);
+  }
+
+  function render(user) {
+    fill("v-userId", user.userId);
+    fill("v-username", user.username);
+    fill("v-phone", user.phoneMasked);
+    fill("v-status", STATUS_LABEL[user.status] || user.status);
+    fill("v-createdAt", formatTime(user.createdAt));
+    loading.hidden = true;
+    kv.hidden = false;
+  }
+
+  function show401(res) {
+    loading.hidden = true;
+    /* 服务端把“没有令牌 / 令牌无效 / 已过期 / 已退出”都归到 401，
+       这里如实转述它的那句话，不自己编文案。 */
+    CB.showError(msg, meta, res);
+  }
+
+  CB.request("/api/users/me").then(function (res) {
+    if (res.ok && res.data) {
+      render(res.data);
+    } else if (res.status === 401) {
+      show401(res);
+    } else {
+      loading.hidden = true;
+      CB.showError(msg, meta, res);
+    }
+  }).catch(function (err) {
+    loading.hidden = true;
+    CB.showError(msg, meta, { status: 0, data: null }, err.message);
+  });
+})();
+</script>
+</body>
+</html>
