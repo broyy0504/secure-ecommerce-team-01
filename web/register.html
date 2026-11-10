@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>注册 · CipherBook</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <span class="brand">CipherBook</span>
+  <nav>
+    <a href="/login.html">登录</a>
+    <a href="/register.html" class="on">注册</a>
+    <a href="/profile.html">个人信息</a>
+    <a href="/logout.html">退出</a>
+  </nav>
+</header>
+
+<main>
+  <div class="card">
+    <h1>注册</h1>
+    <p class="sub">登录名 4–32 位字母、数字或下划线；手机号为 11 位；口令 8–64 位。</p>
+
+    <form id="regForm">
+      <label for="username">登录名</label>
+      <input id="username" name="username" type="text" autocomplete="username"
+             required autofocus>
+
+      <label for="phone">手机号</label>
+      <input id="phone" name="phone" type="tel" autocomplete="tel" required>
+
+      <label for="password">口令</label>
+      <input id="password" name="password" type="password"
+             autocomplete="new-password" required>
+
+      <label for="password2">再输一次口令</label>
+      <input id="password2" name="password2" type="password"
+             autocomplete="new-password" required>
+
+      <button type="submit" id="submitBtn">注册</button>
+    </form>
+
+    <p id="msg" class="msg" role="alert" aria-live="polite"></p>
+    <p id="meta" class="meta"></p>
+
+    <div id="done" hidden>
+      <p class="foot"><a href="/login.html">前往登录</a></p>
+    </div>
+
+    <p class="foot" id="toLogin">已有账号？<a href="/login.html">去登录</a></p>
+  </div>
+
+  <p class="note">
+    口令在服务端加盐后经慢哈希入库，页面不保存、不回显任何口令内容。
+    上面只是规则说明，页面不做格式拦截 —— 注册能不能通过，以服务端返回为准。
+  </p>
+</main>
+
+<script src="/assets/api.js"></script>
+<script>
+(function () {
+  "use strict";
+  var CB = window.CipherBook;
+  var form = document.getElementById("regForm");
+  var btn = document.getElementById("submitBtn");
+  var msg = document.getElementById("msg");
+  var meta = document.getElementById("meta");
+  var done = document.getElementById("done");
+  var toLogin = document.getElementById("toLogin");
+
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    CB.clearMsg(msg, meta);
+
+    var username = document.getElementById("username").value.trim();
+    var phone = document.getElementById("phone").value.trim();
+    var password = document.getElementById("password").value;
+    var password2 = document.getElementById("password2").value;
+
+    if (!username || !phone || !password) {
+      CB.showError(msg, meta, { status: 400, data: null }, "请填写登录名、手机号和口令");
+      return;
+    }
+    /* 两次口令不一致属于页面上就能看出来的事，先提示一句；
+       但真正的口令规则仍由服务端判。 */
+    if (password !== password2) {
+      CB.showError(msg, meta, { status: 400, data: null }, "两次输入的口令不一致");
+      return;
+    }
+
+    CB.withBusy(btn, function () {
+      return CB.request("/api/users/register", {
+        method: "POST",
+        auth: false,
+        body: { username: username, phone: phone, password: password }
+      });
+    }).then(function (res) {
+      if (!res.ok) {
+        CB.showError(msg, meta, res);
+        return;
+      }
+      /* 注册成功：只显示服务端返回的登录名与打码手机号，仍然走 textContent */
+      var who = res.data && res.data.username ? "：" + res.data.username : "";
+      CB.showOk(msg, meta, "注册成功" + who + "，可以登录了。");
+      form.reset();
+      btn.disabled = true;
+      done.hidden = false;
+      toLogin.hidden = true;
+    }).catch(function (err) {
+      CB.showError(msg, meta, { status: 0, data: null }, err.message);
+    });
+  });
+})();
+</script>
+</body>
+</html>
