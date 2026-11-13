@@ -2,7 +2,7 @@ openapi: 3.0.3
 
 info:
   title: 在线书店电商系统 API 草案
-  version: "1.0.0"
+  version: "1.0.1"
   description: |
     进阶式挑战性综合项目 I · 安全电子商务系统的设计与实现
     小组：第 1 组 · 场景：在线书店（纸质书零售） · 仓库：secure-ecommerce-team-01
@@ -12,6 +12,9 @@ info:
 
     路径清单覆盖任务书要求的「用户管理核心接口」（注册、登录、退出、查询本人信息、修改本人信息）
     以及本组场景接口（图书浏览与搜索、图书详情、购物车查询、购物车加购）。
+
+    数据库内部的用户主键使用 BIGINT UNSIGNED；对外 JSON 中的 userId 统一使用十进制字符串，
+    避免客户端对 64 位整数产生精度损失。订单对外标识沿用项目 II 交接契约中的 order_no。
 
     编号贯通：本文件每个接口的 x-trace 字段给出对应的需求编号（FR/SR/NFR）
     与用例编号（UC），编号口径与《需求追踪矩阵V1》一致。
@@ -85,7 +88,7 @@ paths:
               examples:
                 created:
                   value:
-                    userId: 10001
+                    userId: "10001"
                     username: reader_zhang
                     phone: "138****8000"
                     role: buyer
@@ -155,7 +158,7 @@ paths:
                     tokenType: Bearer
                     expiresIn: 7200
                     user:
-                      userId: 10001
+                      userId: "10001"
                       username: reader_zhang
                       role: buyer
                       status: active
@@ -238,7 +241,7 @@ paths:
               examples:
                 buyer:
                   value:
-                    userId: 10001
+                    userId: "10001"
                     username: reader_zhang
                     role: buyer
                     status: active
@@ -412,7 +415,7 @@ paths:
               examples:
                 cart:
                   value:
-                    ownerUserId: 10001
+                    ownerUserId: "10001"
                     totalAmount:
                       amount: "83.40"
                       currency: CNY
@@ -656,10 +659,11 @@ components:
       required: [userId, username, role, status]
       properties:
         userId:
-          type: integer
-          format: int64
+          type: string
+          pattern: '^[0-9]{1,20}$'
           readOnly: true
-          example: 10001
+          description: 对应 user_account.user_id BIGINT UNSIGNED，以十进制字符串传输
+          example: "10001"
         username:
           type: string
           readOnly: true
@@ -683,9 +687,11 @@ components:
       required: [userId, username, role, status]
       properties:
         userId:
-          type: integer
-          format: int64
+          type: string
+          pattern: '^[0-9]{1,20}$'
           readOnly: true
+          description: 对应 user_account.user_id BIGINT UNSIGNED，以十进制字符串传输
+          example: "10001"
         username:
           type: string
           readOnly: true
@@ -801,10 +807,10 @@ components:
       required: [items, totalAmount]
       properties:
         ownerUserId:
-          type: integer
-          format: int64
+          type: string
+          pattern: '^[0-9]{1,20}$'
           readOnly: true
-          description: 服务端写入的购物车归属，不接受客户端传入
+          description: 服务端写入的购物车归属，对应 BIGINT UNSIGNED 用户主键，以十进制字符串传输；不接受客户端传入
         items:
           type: array
           items:
