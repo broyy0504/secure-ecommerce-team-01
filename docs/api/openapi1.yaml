@@ -1,0 +1,294 @@
+openapi: 3.0.3
+info:
+  title: 安全电子商务系统 - 用户模块 API
+  description: |
+    本期交付包含用户模块（注册、登录、退出、个人信息、鉴权校验）以及项目 II 预留接口。
+    - 统一使用 Bearer Token 鉴权（Token 放在 Header 中）。
+    - 统一错误响应结构。
+    - 注意：单次请求体大小限制为 64KB，超出返回 413 PAYLOAD_TOO_LARGE。
+  version: 1.0.0
+servers:
+  - url: http://127.0.0.1:8000
+    description: 本地开发服务器
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: 请输入登录接口返回的 accessToken
+
+  responses:
+    BadRequest:
+      description: 请求参数不合法 (VALIDATION_ERROR)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: 未登录或令牌失效 (AUTH_UNAUTHENTICATED / AUTH_TOKEN_EXPIRED)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: 资源不存在或越权访问 (RESOURCE_NOT_FOUND)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: 资源冲突，如用户名被占用 (USER_ALREADY_EXISTS)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotImplemented:
+      description: 该接口属项目 II 范围，本期未实现 (NOT_IMPLEMENTED)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [code, message, traceId]
+      properties:
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: 请求参数不合法
+        traceId:
+          type: string
+          description: 追踪编号，与日志对应
+          example: be6a33ca3dcc0305
+        details:
+          type: array
+          description: 字段级的错误原因
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                example: username
+              reason:
+                type: string
+                enum: [REQUIRED, TYPE_MISMATCH, TOO_SHORT, TOO_LONG, FORMAT_INVALID, OUT_OF_RANGE, NOT_ALLOWED, DUPLICATE]
+
+    RegisterRequest:
+      type: object
+      additionalProperties: false
+      required: [username, phone, password]
+      properties:
+        username:
+          type: string
+          pattern: '^[A-Za-z0-9_]{4,32}$'
+          description: 4-32位字母数字下划线
+          example: test_user
+        phone:
+          type: string
+          pattern: '^1[3-9]\d{9}$'
+          description: 中国大陆手机号
+          example: '13800138000'
+        password:
+          type: string
+          minLength: 8
+          maxLength: 64
+          description: 不能全为同一字符，不能等于账号或手机号
+          example: Password123!
+        nickname:
+          type: string
+          minLength: 1
+          maxLength: 32
+          description: 可选，允许任意可打印字符（XSS转义由前端负责）
+          example: 测试昵称
+
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [account, password]
+      properties:
+        account:
+          type: string
+          description: 用户名或手机号
+          example: test_user
+        password:
+          type: string
+          minLength: 8
+          maxLength: 64
+          example: Password123!
+
+    UserProfile:
+      type: object
+      properties:
+        userId: { type: string, example: "1" }
+        username: { type: string, example: test_user }
+        nickname: { type: string, example: 测试昵称 }
+        phoneMasked: { type: string, example: 138****8000 }
+        emailMasked: { type: string, nullable: true, example: null }
+        status: { type: string, enum: [active, locked, disabled], example: active }
+        lastLoginAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    LoginResponse:
+      type: object
+      properties:
+        accessToken: { type: string, example: "eyJhbGciOi..." }
+        tokenType: { type: string, example: "Bearer" }
+        expiresIn: { type: integer, example: 7200 }
+        user:
+          type: object
+          properties:
+            userId: { type: string, example: "1" }
+            username: { type: string, example: test_user }
+            nickname: { type: string, example: 测试昵称 }
+            role: { type: string, example: buyer }
+
+    VerifyResponse:
+      type: object
+      properties:
+        valid: { type: boolean, example: true }
+        userId: { type: string, example: "1" }
+        username: { type: string, example: test_user }
+        issuedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        expiresIn: { type: integer, example: 7000 }
+
+paths:
+  /api/users/register:
+    post:
+      summary: 用户注册
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201':
+          description: 注册成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserProfile' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/auth/login:
+    post:
+      summary: 用户登录
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/auth/logout:
+    post:
+      summary: 退出登录
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        description: 允许无请求体或传空对象 {}
+        required: false
+      responses:
+        '204': { description: 退出成功，无内容返回 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/users/me:
+    get:
+      summary: 获取当前登录用户信息
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: 成功获取个人信息
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserProfile' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/auth/verify:
+    get:
+      summary: 校验令牌有效性
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: 令牌有效
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VerifyResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/users/{userId}:
+    get:
+      summary: 获取指定用户信息（用于越权验收测试）
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{1,19}$'
+      responses:
+        '200':
+          description: 仅当查询本人时返回成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserProfile' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ==========================================
+  # 项目 II 预留接口 (全部返回 501)
+  # ==========================================
+  /api/books:
+    get:
+      summary: "【预留】获取图书列表"
+      responses: { '501': { $ref: '#/components/responses/NotImplemented' } }
+  /api/books/{bookId}:
+    get:
+      summary: "【预留】获取图书详情"
+      responses: { '501': { $ref: '#/components/responses/NotImplemented' } }
+  /api/cart:
+    get:
+      summary: "【预留】获取购物车"
+      security: [{ BearerAuth: [] }]
+      responses: { '501': { $ref: '#/components/responses/NotImplemented' } }
+  /api/cart/items:
+    post:
+      summary: "【预留】添加商品到购物车"
+      security: [{ BearerAuth: [] }]
+      responses: { '501': { $ref: '#/components/responses/NotImplemented' } }
+  /api/cart/items/{bookId}:
+    delete:
+      summary: "【预留】从购物车删除商品"
+      security: [{ BearerAuth: [] }]
+      responses: { '501': { $ref: '#/components/responses/NotImplemented' } }
+  /api/orders:
+    post:
+      summary: "【预留】创建订单"
+      security: [{ BearerAuth: [] }]
+      responses: { '501': { $ref: '#/components/responses/NotImplemented' } }
+  /api/orders/{orderId}:
+    get:
+      summary: "【预留】查询订单"
+      security: [{ BearerAuth: [] }]
+      responses: { '501': { $ref: '#/components/responses/NotImplemented' } }
+  /api/payments/callback:
+    post:
+      summary: "【预留】支付回调"
+      responses: { '501': { $ref: '#/components/responses/NotImplemented' } }
+  /api/auth/cert/verify:
+    post:
+      summary: "【预留】证书认证校验"
+      responses: { '501': { $ref: '#/components/responses/NotImplemented' } }
