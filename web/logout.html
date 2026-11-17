@@ -18,10 +18,7 @@
 
   <section class="card">
     <h2 id="who">正在确认当前会话…</h2>
-    <p class="hint">
-      退出不是"删本地字符串"：服务端会把这条会话标记为已撤销，
-      这枚令牌之后再用一律 401，换台设备也登不回来。
-    </p>
+    <p class="hint">退出后这枚令牌在服务端失效，再用会返回 401。</p>
     <dl class="kv" id="session"></dl>
     <div class="actions">
       <button id="confirm" type="button">确认退出</button>
@@ -29,10 +26,6 @@
     </div>
   </section>
 
-  <p class="foot">
-    已经退出的令牌再调一次退出，仍返回 <code>204</code>——幂等，且不额外确认"这枚令牌曾经有效"。<br>
-    演示"退出后重放旧令牌"的完整步骤见 <code>docs/test/week10-11/04-会话劫持.md</code>
-  </p>
 </main>
 
 <script src="js/api.js"></script>

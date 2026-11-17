@@ -11,6 +11,7 @@
   var sessionEl = document.getElementById("session");
   var confirmBtn = document.getElementById("confirm");
   var esc = BS_RENDER.escapeHtml;
+  var fmtTime = BS_RENDER.fmtTime;
 
   if (!BS.getToken()) {
     who.textContent = "当前没有登录会话";
@@ -24,7 +25,7 @@
     return (
       '<dt>用户编号</dt><dd>' + esc(session.userId) + "</dd>" +
       '<dt>登录名</dt><dd>' + esc(session.username) + "</dd>" +
-      '<dt>失效时间</dt><dd>' + esc(session.expiresAt) + "</dd>"
+      '<dt>失效时间</dt><dd>' + esc(fmtTime(session.expiresAt)) + "</dd>"
     );
   }
 

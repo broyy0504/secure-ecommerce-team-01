@@ -1,6 +1,6 @@
 # 前端（web/）
 
-四个页面 + 一个跳转入口，原生 HTML/CSS/JS，无框架、无 CDN、无构建步骤。
+四个页面，原生 HTML/CSS/JS，无框架、无 CDN、无构建步骤。
 与后端**并列放在同一个仓库**（任务书 2.2："前后端分离不等于两个仓库"）。
 
 ## 1. 页面
@@ -11,7 +11,6 @@
 | `register.html` | 注册，成功后自动登录 | `POST /api/users/register` → `POST /api/auth/login` |
 | `profile.html` | 个人信息 + 当前会话有效期，可重新拉取 | `GET /api/users/me`、`GET /api/auth/verify` |
 | `logout.html` | 先确认"当前是谁"，再撤销会话，显示退出后状态 | `GET /api/auth/verify` → `POST /api/auth/logout` |
-| `index.html` | 跳到登录页（避免直接访问目录时看到文件列表） | — |
 
 ## 2. 怎么起
 

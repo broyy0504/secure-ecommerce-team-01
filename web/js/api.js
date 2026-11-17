@@ -174,7 +174,7 @@
       if (traceId) {
         var span = document.createElement("span");
         span.className = "trace";
-        span.textContent = "追踪编号 " + traceId + "（排障时把它给后端）";
+        span.textContent = "追踪号 " + traceId;
         el.appendChild(span);
       }
     },

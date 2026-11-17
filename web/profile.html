@@ -18,13 +18,11 @@
 
   <section class="card">
     <h2 id="greeting">正在读取…</h2>
-    <p class="hint">下面每一项都来自服务端按令牌解析出的身份，前端没有传任何用户标识。</p>
     <dl class="kv" id="profile"></dl>
   </section>
 
   <section class="card">
     <h2>当前会话</h2>
-    <p class="hint">令牌原文不出现在页面里，也不写进 URL 或 Cookie。</p>
     <dl class="kv" id="session"></dl>
     <div class="actions">
       <button id="refresh" type="button" class="btn ghost">重新拉取</button>
@@ -32,11 +30,6 @@
     </div>
   </section>
 
-  <p class="foot">
-    昵称按原文入库、输出转义：把昵称设成 <code>&lt;script&gt;alert(1)&lt;/script&gt;</code>，
-    页面源码里看到的是实体，页面上就是一行符号。<br>
-    接口 <code>GET /api/users/me</code> · <code>GET /api/auth/verify</code>
-  </p>
 </main>
 
 <script src="js/api.js"></script>

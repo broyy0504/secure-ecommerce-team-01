@@ -16,13 +16,14 @@
   var sessionEl = document.getElementById("session");
   var refresh = document.getElementById("refresh");
   var esc = BS_RENDER.escapeHtml;
+  var fmtTime = BS_RENDER.fmtTime;
 
   function sessionRows(session) {
     var minutes = Math.max(0, Math.round((session.expiresIn || 0) / 60));
     return (
       '<dt>用户编号</dt><dd>' + esc(session.userId) + "</dd>" +
-      '<dt>签发时间</dt><dd>' + esc(session.issuedAt) + "</dd>" +
-      '<dt>失效时间</dt><dd>' + esc(session.expiresAt) + "</dd>" +
+      '<dt>签发时间</dt><dd>' + esc(fmtTime(session.issuedAt)) + "</dd>" +
+      '<dt>失效时间</dt><dd>' + esc(fmtTime(session.expiresAt)) + "</dd>" +
       '<dt>剩余有效</dt><dd>约 ' + esc(minutes) + " 分钟</dd>"
     );
   }

@@ -93,7 +93,7 @@
 ### Issue 5 · 前端：注册/登录/个人信息/退出四页面与错误提示
 
 **要做**
-- `web/` 四个页面 + `index.html` 跳转；令牌放 `sessionStorage`，只在 `Authorization` 头里发；
+- `web/` 四个页面；令牌放 `sessionStorage`，只在 `Authorization` 头里发；
 - 所有服务端数据经 `web/js/render.js` 的 `escapeHtml` 后进 DOM（唯一转义点）；
 - 错误码翻译成人话（含字段与原因），页面不复刻任何安全判断；
 - 每页带 CSP，且无内联脚本。

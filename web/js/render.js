@@ -37,6 +37,25 @@
     disabled: "已停用"
   };
 
+  /* 服务端给的是 UTC 的 ISO 串（2026-11-17T01:08:18.006Z），直接显示会和本地时间差 8 小时。
+     这里按浏览器本地时区转成 "2026-11-17 09:08"，转不出来就原样返回。 */
+  function fmtTime(value) {
+    if (!value) {
+      return value;
+    }
+    var d = new Date(value);
+    if (isNaN(d.getTime())) {
+      return value;
+    }
+    var pad = function (n) {
+      return n < 10 ? "0" + n : String(n);
+    };
+    return (
+      d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
+      " " + pad(d.getHours()) + ":" + pad(d.getMinutes())
+    );
+  }
+
   function cell(label, valueHtml) {
     return "<dt>" + escapeHtml(label) + "</dt><dd>" + valueHtml + "</dd>";
   }
@@ -62,13 +81,14 @@
       cell("手机号", text(p.phoneMasked)) +
       cell("邮箱", text(p.emailMasked, "本期不采集")) +
       cell("账号状态", statusHtml) +
-      cell("上次登录", text(p.lastLoginAt, "本次是首次登录")) +
-      cell("注册时间", text(p.createdAt))
+      cell("上次登录", text(fmtTime(p.lastLoginAt), "本次是首次登录")) +
+      cell("注册时间", text(fmtTime(p.createdAt)))
     );
   }
 
   var api = {
     escapeHtml: escapeHtml,
+    fmtTime: fmtTime,
     renderProfile: renderProfile,
     STATUS_TEXT: STATUS_TEXT
   };
