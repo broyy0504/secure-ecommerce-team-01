@@ -104,7 +104,7 @@ CRT 性能对比、以及"小位宽为什么不能用于生产"的分解实测�
 python src/crypto/rsa.py
 ```
 
-交叉验证（第二条路径，用标准库 `pow` / `math.gcd` 独立复算，共 128 项断言）：
+交叉验证（第二条路径，用标准库 `pow` / `math.gcd` 独立复算，共 129 项断言）：
 
 ```bash
 python src/crypto/verify_with_stdlib.py
