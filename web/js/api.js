@@ -28,7 +28,7 @@
     USER_ALREADY_EXISTS: "该登录名或手机号已被使用",
     RATE_LIMITED: "请求过于频繁，请稍后再试",
     INTERNAL_ERROR: "服务暂时不可用，请稍后再试",
-    NETWORK_ERROR: "连不上后端服务，请确认后端已在 8000 端口启动"
+    NETWORK_ERROR: "连不上后端：确认 8000 已启动，且本页是从 127.0.0.1 打开的（跨域白名单不含 localhost:8080）"
   };
 
   var FIELD_TEXT = {
