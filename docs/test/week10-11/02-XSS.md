@@ -61,9 +61,13 @@ PASS  javascript: 里的冒号不构成链接（纯文本渲染）
 共 8 项，全部通过。
 ```
 
-**第二道防线：CSP。** 5 个页面全部带 `Content-Security-Policy` meta，`script-src 'self'`，
-且没有任何内联 `<script>`（X-08 断言 5/5、内联 0 个）。即使某处漏了转义，注入的
+**第二道防线：CSP。** 每个页面都带 `Content-Security-Policy` meta，`script-src 'self'`，
+且没有任何内联 `<script>`（X-08 断言：CSP 覆盖全部页面、内联 0 个）。即使某处漏了转义，注入的
 `<script>` 也执行不了；但**主控制仍是转义**，CSP 只是兜底——这一点在结论里不混淆。
+
+> 断言的分母是"存在的页面数"，所以输出会随页面数量变化：标签版本删掉了只做跳转的
+> `web/index.html`（`web/serve.py` 的 `DEFAULT_PAGE` 已是 `/login.html`），跑出来是 4/4；
+> 未删该文件的版本是 5/5。两者都表示"没有页面漏掉 CSP"，判定口径不变。
 
 ## 3. 测试结果
 
@@ -76,7 +80,7 @@ PASS  javascript: 里的冒号不构成链接（纯文本渲染）
 | X-05 | 注册（username） | `<script>x</script>` | 400（登录名白名单） | 400 VALIDATION_ERROR | 通过 | T-TM-05 | SR-19 |
 | X-06 | 注册（nickname） | `<script>` + 40×A + `</script>` | 400（超 32 字符 → TOO_LONG） | 400 VALIDATION_ERROR | 通过 | T-TM-05 | SR-19 |
 | X-07 | 注册（nickname） | `a\x00b` | 400（控制字符） | 400 VALIDATION_ERROR | 通过 | T-TM-05 | SR-19 |
-| X-08 | `web/*.html` | — | 每页有 CSP；无内联脚本 | CSP 5/5；内联脚本 0 个 | 通过 | T-TM-05 | SR-19 |
+| X-08 | `web/*.html` | — | 每页有 CSP；无内联脚本 | CSP 覆盖全部页面（标签版本 4/4）；内联脚本 0 个 | 通过 | T-TM-05 | SR-19 |
 
 ## 4. 两个刻意为之的设计，答辩时会被问
 

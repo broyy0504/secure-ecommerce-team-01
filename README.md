@@ -136,7 +136,9 @@ python src/crypto/verify_with_stdlib.py
 python test/check_design_docs.py
 ```
 
-> **边界声明**：`docs/design/` 声明的控制均为**设计规定**。`src/backend/`、`src/user/`、`db/` 尚未实现，因此除 `src/crypto/加盐哈希.py` 的口令派生算法外，没有控制已在代码中落地。凡声明「已做控制」的，均可在 [`04-控制指认与整改输入.md`](docs/design/04-控制指认与整改输入.md) §2 指到文件与位置；未落地的一律登记为 `R-D-xx` 整改条目。口令派生复用第 5 周 `src/crypto/加盐哈希.py`，不另写算法。
+> **边界声明**：`docs/design/` 声明的控制均为**设计规定**。第 6-9 周写作时 `src/backend/`、`src/user/`、`db/` 尚未实现，因此当时除 `src/crypto/加盐哈希.py` 的口令派生算法外，没有控制已在代码中落地。凡声明「已做控制」的，均可在 [`04-控制指认与整改输入.md`](docs/design/04-控制指认与整改输入.md) §2 指到文件与位置；未落地的一律登记为 `R-D-xx` 整改条目。口令派生复用第 5 周 `src/crypto/加盐哈希.py`，不另写算法。
+>
+> **更新（第 10-11 周）**：`src/user/` 与 `db/` 已落地可运行实现。`R-D-01`（口令四列建表与落库）、`R-D-03`（等时失败 + 失败计数与锁定）已在代码中关闭；`R-D-06` 的令牌校验、归属校验、限流、请求体体积上限四部分已落地，**角色校验仍待项目 II 接入角色表**（见 [`docs/handover/01`](docs/handover/01-用户表与身份字段冻结清单.md) §6）。`src/backend/` 仍为空，属项目 II。
 >
 > `docs/design/02-安全需求.md` §2 登记**被安全需求引用**的 22 条威胁，用于让每条 SR 能指到威胁编号；§7 另列出威胁清单中未被 SR 覆盖的 9 条及其处置去向。完整的 STRIDE 清单与 DREAD 打分以 [`docs/threat-model/threat-list.md`](docs/threat-model/threat-list.md) 为准。
 

@@ -66,7 +66,7 @@ AUTH_ALLOWED_ORIGINS="http://127.0.0.1:5500" python -m src.user.server
 | 错误码 | HTTP | 对外文案 | 本模块会出现的接口 |
 | :--- | :---: | :--- | :--- |
 | `VALIDATION_ERROR` | 400 | 请求参数不合法 | 全部 |
-| `PAYLOAD_TOO_LARGE` | 413 | 请求体过大 | 注册、登录 |
+| `PAYLOAD_TOO_LARGE` | 413 | 请求体过大 | 注册、登录、退出（带 body 的三个接口） |
 | `AUTH_INVALID_CREDENTIALS` | 401 | 账号或密码错误 | 登录 |
 | `AUTH_UNAUTHENTICATED` | 401 | 登录状态无效，请重新登录 | 全部受保护接口 |
 | `AUTH_TOKEN_EXPIRED` | 401 | 登录已过期，请重新登录 | 全部受保护接口 |
@@ -90,3 +90,17 @@ AUTH_ALLOWED_ORIGINS="http://127.0.0.1:5500" python -m src.user.server
 | 数据库连接串 | 接口文档不需要；`AUTH_DB` 属运行配置 |
 | 密钥、证书、令牌示例（真实） | 示例令牌是随机占位串，复制也无法使用 |
 | 真实手机号、真实用户数据 | 示例统一用 `13800138000` 一类不可能真实收到的号段 |
+
+## 6. 目录里另一份 `openapi1.yaml` 的口径说明
+
+同目录还有 `openapi1.yaml` 与 `README1.md`，是第 10-11 周组内另一名成员并行提交的版本，
+与本模块**不是同一份契约**：它覆盖 15 条路由（含项目 II 的 9 条预留路由），但没有 `ErrorResponse`
+的错误码枚举，也没有逐接口的"输入约束 / 输出 / 错误码 / 鉴权"四段说明。
+
+因此：
+
+- **本期验收口径以 `openapi.yaml` 为准**——任务书要的五个接口、四要素、错误码与实现一致，都在这一份里；
+- `openapi1.yaml` 里的 II 阶段路由，签名与返回以 [`docs/handover/03-商品与支付接口预留.md`](../handover/03-商品与支付接口预留.md) 为准，
+  实现侧一律返回 `501 NOT_IMPLEMENTED`；
+- 没有任何脚本加载这两个文件（`src/user/server.py` 与 `src/user/__init__.py` 里只有"文档在哪"的路径字符串），
+  删掉 `openapi1.yaml` / `README1.md` 不会影响四条自测脚本。是否删除由组内决定，本文只做口径声明。

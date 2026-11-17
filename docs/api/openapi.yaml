@@ -141,7 +141,8 @@ paths:
         - 令牌只在这一次响应里出现；服务端不再下发，也不返回摘要。
 
         **错误码**
-        - `VALIDATION_ERROR`(400)、`AUTH_INVALID_CREDENTIALS`(401)、`RATE_LIMITED`(429)、`INTERNAL_ERROR`(500)。
+        - `VALIDATION_ERROR`(400)、`AUTH_INVALID_CREDENTIALS`(401)、`PAYLOAD_TOO_LARGE`(413)、
+          `RATE_LIMITED`(429)、`INTERNAL_ERROR`(500)。
         - **账号不存在、口令错误、账号被锁定、账号被停用四种情况，一律 `401 AUTH_INVALID_CREDENTIALS`**，
           文案逐字相同，不附加任何区分性提示；前三种还会各跑一次 PBKDF2 让耗时同量级。
 
@@ -201,6 +202,8 @@ paths:
                     traceId: "91cb249af7fb7706"
         '429':
           $ref: '#/components/responses/RateLimited'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -222,7 +225,8 @@ paths:
 
         **错误码**
         - `AUTH_UNAUTHENTICATED`(401)（令牌缺失、格式非法、不存在、已被撤销）、
-          `AUTH_TOKEN_EXPIRED`(401)、`VALIDATION_ERROR`(400)（附带了字段）、`INTERNAL_ERROR`(500)。
+          `AUTH_TOKEN_EXPIRED`(401)、`VALIDATION_ERROR`(400)（附带了字段）、
+          `PAYLOAD_TOO_LARGE`(413)（请求体超过 1 KB 上限）、`INTERNAL_ERROR`(500)。
 
         **鉴权**
         - 必须携带有效令牌；只撤销**当前请求所用令牌对应的那一个会话**，不影响该用户其它设备。
@@ -250,6 +254,8 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
         '500':
           $ref: '#/components/responses/InternalError'
 
