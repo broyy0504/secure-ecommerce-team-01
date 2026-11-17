@@ -5,7 +5,9 @@
  *    CSRF 在结构上就没有落脚点（详见 docs/test/week10-11/03-CSRF.md）。
  * 2. 前端**不做安全判断**：口令强度、账号是否存在、令牌是否有效，一律由后端说了算，
  *    这里只把后端的结论翻译成人话。改 DOM 隐藏按钮也不构成鉴权。
- * 3. 任何 401 都清掉本地令牌并回登录页：那是服务端撤销或过期的唯一可靠信号。
+ * 3. 401 在这里只清本地令牌（且仅限 AUTH_UNAUTHENTICATED / AUTH_TOKEN_EXPIRED）：
+ *    服务端撤销或过期是唯一可靠的失效信号。回不回登录页由各页面按场景决定——
+ *    个人信息页回登录页，退出页只清本地副本并留在原地显示状态。
  */
 (function (global) {
   "use strict";
@@ -153,7 +155,7 @@
       });
     },
     logout: function () {
-      return request("POST", "/api/auth/logout", { body: {}, redirectOn401: false });
+      return request("POST", "/api/auth/logout", { body: {} });
     },
     verify: function () {
       return request("GET", "/api/auth/verify");
